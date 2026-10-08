@@ -21,7 +21,19 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+        ]);
+
+        // Guest/auth redirects resolve to the right side based on context.
+        $middleware->redirectGuestsTo(
+            fn () => tenant() ? route('tenant.login') : route('login')
+        );
+        $middleware->redirectUsersTo(
+            fn () => tenant() ? route('tenant.dashboard') : route('dashboard')
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
