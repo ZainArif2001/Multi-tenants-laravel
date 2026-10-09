@@ -23,6 +23,7 @@ class TenantSeeder extends Seeder
             'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
             'projects.view', 'projects.manage',
             'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.update_status',
+            'chats.view',
         ];
 
         foreach ($permissions as $permission) {
@@ -41,11 +42,11 @@ class TenantSeeder extends Seeder
 
         Role::firstOrCreate(['name' => 'hr'])->syncPermissions([
             'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
-            'tasks.view',
+            'tasks.view', 'chats.view',
         ]);
 
         Role::firstOrCreate(['name' => 'member'])->syncPermissions([
-            'tasks.view', 'tasks.update_status',
+            'tasks.view', 'tasks.update_status', 'chats.view',
         ]);
     }
 }

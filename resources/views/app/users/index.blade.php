@@ -35,6 +35,9 @@
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     {{ __('Role') }}
                                 </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    {{ __('Access') }}
+                                </th>
                                 <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     {{ __('Action') }}
                                 </th>
@@ -52,6 +55,15 @@
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {{ $user->roles->pluck('name')->join(', ') ?: '—' }}
                                     </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">
+                                        @if ($user->hasRole('admin'))
+                                            <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">{{ __('All modules') }}</span>
+                                        @else
+                                            @foreach (collect(\App\Models\Tenant::MODULES)->keys()->filter(fn ($m) => $user->hasAccessTo($m)) as $m)
+                                                <span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded mr-1">{{ \App\Models\Tenant::MODULES[$m] }}</span>
+                                            @endforeach
+                                        @endif
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <a href="{{ route('tenant.users.edit', $user) }}" class="text-indigo-600 hover:text-indigo-900 mr-4">
                                             {{ __('Edit') }}
@@ -68,7 +80,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">
+                                    <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">
                                         {{ __('No users found.') }}
                                     </td>
                                 </tr>

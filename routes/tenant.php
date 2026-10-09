@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\App\ChatController;
 use App\Http\Controllers\App\EmployeeController;
 use App\Http\Controllers\App\PostController;
 use App\Http\Controllers\App\ProfileController;
+use App\Http\Controllers\App\SiteController;
 use App\Http\Controllers\App\ProjectController;
 use App\Http\Controllers\App\TaskController;
 use App\Http\Controllers\App\UserController;
@@ -33,9 +35,16 @@ Route::middleware([
     InitializeTenancyByDomain::class,
     PreventAccessFromCentralDomains::class,
 ])->name('tenant.')->group(function () {
-    Route::get('/', function () {
-        return view('app.welcome');
-    });
+    // Public website — no auth; pages are gated by the tenant's enabled modules
+    Route::get('/', [SiteController::class, 'home'])->name('home');
+    Route::get('/blog', [SiteController::class, 'blog'])->name('blog')->middleware('module:posts');
+    Route::get('/blog/{post}', [SiteController::class, 'post'])->name('blog.show')->middleware('module:posts');
+    Route::get('/team', [SiteController::class, 'team'])->name('team')->middleware('module:employees');
+
+    // Public AI chatbot — rate limited, only when tenant has the chat module
+    Route::post('/chat', [ChatController::class, 'send'])
+        ->name('chat.send')
+        ->middleware(['module:chat', 'throttle:10,1']);
 
     Route::middleware('auth')->group(function () {
         Route::get('/dashboard', function () {
@@ -52,29 +61,39 @@ Route::middleware([
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+        // Chat history — staff can browse visitor conversations
+        Route::get('/chats', [ChatController::class, 'index'])
+            ->name('chats.index')
+            ->middleware(['module:chat', 'access:chat', 'permission:chats.view']);
+
         // Users — admin only
         Route::resource('users', UserController::class)
             ->except('show')
             ->middleware('role:admin');
 
         // Posts — writers create/edit own, admins can publish & manage all
-        Route::get('posts', [PostController::class, 'index'])->name('posts.index')->middleware('permission:posts.view');
+        Route::middleware(['module:posts', 'access:posts'])->group(function () {
+            Route::get('posts', [PostController::class, 'index'])->name('posts.index')->middleware('permission:posts.view');
         Route::get('posts/create', [PostController::class, 'create'])->name('posts.create')->middleware('permission:posts.create');
         Route::post('posts', [PostController::class, 'store'])->name('posts.store')->middleware('permission:posts.create');
         Route::get('posts/{post}/edit', [PostController::class, 'edit'])->name('posts.edit')->middleware('permission:posts.edit');
         Route::put('posts/{post}', [PostController::class, 'update'])->name('posts.update')->middleware('permission:posts.edit');
         Route::delete('posts/{post}', [PostController::class, 'destroy'])->name('posts.destroy')->middleware('permission:posts.delete');
+        });
 
         // Employees — hr + admin
-        Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index')->middleware('permission:employees.view');
+        Route::middleware(['module:employees', 'access:employees'])->group(function () {
+            Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index')->middleware('permission:employees.view');
         Route::get('employees/create', [EmployeeController::class, 'create'])->name('employees.create')->middleware('permission:employees.create');
         Route::post('employees', [EmployeeController::class, 'store'])->name('employees.store')->middleware('permission:employees.create');
         Route::get('employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit')->middleware('permission:employees.edit');
         Route::put('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update')->middleware('permission:employees.edit');
         Route::delete('employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy')->middleware('permission:employees.delete');
+        });
 
         // Projects — admin manages, members view
-        Route::get('projects', [ProjectController::class, 'index'])->name('projects.index')->middleware('permission:projects.view');
+        Route::middleware(['module:projects', 'access:projects'])->group(function () {
+            Route::get('projects', [ProjectController::class, 'index'])->name('projects.index')->middleware('permission:projects.view');
         Route::get('projects/create', [ProjectController::class, 'create'])->name('projects.create')->middleware('permission:projects.manage');
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store')->middleware('permission:projects.manage');
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show')->middleware('permission:projects.view');
@@ -90,6 +109,7 @@ Route::middleware([
         Route::put('tasks/{task}', [TaskController::class, 'update'])->name('tasks.update')->middleware('permission:tasks.edit');
         Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status')->middleware('permission:tasks.update_status');
         Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy')->middleware('permission:tasks.delete');
+        });
     });
 
     require __DIR__.'/tenant-auth.php';

@@ -23,6 +23,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'allowed_modules',
     ];
 
     /**
@@ -45,7 +46,34 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'allowed_modules' => 'array',
         ];
+    }
+
+    /**
+     * Per-user module access — the tenant admin picks which projects
+     * a user can open. Admins get everything; legacy users (null)
+     * fall back to access derived from their role.
+     */
+    public function hasAccessTo(string $module): bool
+    {
+        if ($this->hasRole('admin')) {
+            return true;
+        }
+
+        $module = $module === 'tasks' ? 'projects' : $module;
+        $modules = $this->allowed_modules;
+
+        if ($modules === null) {
+            return match (true) {
+                $this->hasRole('writer') => in_array($module, ['posts', 'projects']),
+                $this->hasRole('hr') => in_array($module, ['employees', 'projects', 'chat']),
+                $this->hasRole('member') => in_array($module, ['projects', 'chat']),
+                default => false,
+            };
+        }
+
+        return in_array($module, $modules);
     }
 
     public function posts()

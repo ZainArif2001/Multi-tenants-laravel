@@ -18,16 +18,16 @@
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                 @php
                     $stats = [
-                        ['label' => 'Users', 'count' => $usersCount, 'can' => 'users.manage'],
-                        ['label' => 'Posts', 'count' => $postsCount, 'can' => 'posts.view'],
-                        ['label' => 'Employees', 'count' => $employeesCount, 'can' => 'employees.view'],
-                        ['label' => 'Projects', 'count' => $projectsCount, 'can' => 'projects.view'],
-                        ['label' => 'Tasks', 'count' => $tasksCount, 'can' => 'tasks.view'],
+                        ['label' => 'Users', 'count' => $usersCount, 'can' => 'users.manage', 'module' => null],
+                        ['label' => 'Posts', 'count' => $postsCount, 'can' => 'posts.view', 'module' => 'posts'],
+                        ['label' => 'Employees', 'count' => $employeesCount, 'can' => 'employees.view', 'module' => 'employees'],
+                        ['label' => 'Projects', 'count' => $projectsCount, 'can' => 'projects.view', 'module' => 'projects'],
+                        ['label' => 'Tasks', 'count' => $tasksCount, 'can' => 'tasks.view', 'module' => 'projects'],
                     ];
                 @endphp
 
                 @foreach ($stats as $stat)
-                    @if (auth()->user()->can($stat['can']) || auth()->user()->hasRole('admin'))
+                    @if (($stat['module'] === null || (tenant()->hasModule($stat['module']) && auth()->user()->hasAccessTo($stat['module']))) && (auth()->user()->can($stat['can']) || auth()->user()->hasRole('admin')))
                         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 text-center">
                             <div class="text-3xl font-bold text-gray-800">{{ $stat['count'] }}</div>
                             <div class="text-sm text-gray-500 mt-1">{{ $stat['label'] }}</div>

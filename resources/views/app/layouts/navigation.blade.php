@@ -15,26 +15,39 @@
                     <x-nav-link :href="route('tenant.dashboard')" :active="request()->routeIs('tenant.dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
-                    @can('posts.view')
-                        <x-nav-link :href="route('tenant.posts.index')" :active="request()->routeIs('tenant.posts.*')">
-                            {{ __('Posts') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('employees.view')
-                        <x-nav-link :href="route('tenant.employees.index')" :active="request()->routeIs('tenant.employees.*')">
-                            {{ __('Employees') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('projects.view')
-                        <x-nav-link :href="route('tenant.projects.index')" :active="request()->routeIs('tenant.projects.*')">
-                            {{ __('Projects') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('tasks.view')
-                        <x-nav-link :href="route('tenant.tasks.index')" :active="request()->routeIs('tenant.tasks.*')">
-                            {{ __('Tasks') }}
-                        </x-nav-link>
-                    @endcan
+                    @if (tenant()->hasModule('posts') && auth()->user()->hasAccessTo('posts'))
+                        @can('posts.view')
+                            <x-nav-link :href="route('tenant.posts.index')" :active="request()->routeIs('tenant.posts.*')">
+                                {{ __('Posts') }}
+                            </x-nav-link>
+                        @endcan
+                    @endif
+                    @if (tenant()->hasModule('employees') && auth()->user()->hasAccessTo('employees'))
+                        @can('employees.view')
+                            <x-nav-link :href="route('tenant.employees.index')" :active="request()->routeIs('tenant.employees.*')">
+                                {{ __('Employees') }}
+                            </x-nav-link>
+                        @endcan
+                    @endif
+                    @if (tenant()->hasModule('chat') && auth()->user()->hasAccessTo('chat'))
+                        @can('chats.view')
+                            <x-nav-link :href="route('tenant.chats.index')" :active="request()->routeIs('tenant.chats.*')">
+                                {{ __('Chats') }}
+                            </x-nav-link>
+                        @endcan
+                    @endif
+                    @if (tenant()->hasModule('projects') && auth()->user()->hasAccessTo('projects'))
+                        @can('projects.view')
+                            <x-nav-link :href="route('tenant.projects.index')" :active="request()->routeIs('tenant.projects.*')">
+                                {{ __('Projects') }}
+                            </x-nav-link>
+                        @endcan
+                        @can('tasks.view')
+                            <x-nav-link :href="route('tenant.tasks.index')" :active="request()->routeIs('tenant.tasks.*')">
+                                {{ __('Tasks') }}
+                            </x-nav-link>
+                        @endcan
+                    @endif
                     @role('admin')
                         <x-nav-link :href="route('tenant.users.index')" :active="request()->routeIs('tenant.users.*')">
                             {{ __('Users') }}
@@ -95,26 +108,39 @@
             <x-responsive-nav-link :href="route('tenant.dashboard')" :active="request()->routeIs('tenant.dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
-            @can('posts.view')
-                <x-responsive-nav-link :href="route('tenant.posts.index')" :active="request()->routeIs('tenant.posts.*')">
-                    {{ __('Posts') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('employees.view')
-                <x-responsive-nav-link :href="route('tenant.employees.index')" :active="request()->routeIs('tenant.employees.*')">
-                    {{ __('Employees') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('projects.view')
-                <x-responsive-nav-link :href="route('tenant.projects.index')" :active="request()->routeIs('tenant.projects.*')">
-                    {{ __('Projects') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('tasks.view')
-                <x-responsive-nav-link :href="route('tenant.tasks.index')" :active="request()->routeIs('tenant.tasks.*')">
-                    {{ __('Tasks') }}
-                </x-responsive-nav-link>
-            @endcan
+            @if (tenant()->hasModule('posts') && auth()->user()->hasAccessTo('posts'))
+                @can('posts.view')
+                    <x-responsive-nav-link :href="route('tenant.posts.index')" :active="request()->routeIs('tenant.posts.*')">
+                        {{ __('Posts') }}
+                    </x-responsive-nav-link>
+                @endcan
+            @endif
+            @if (tenant()->hasModule('employees') && auth()->user()->hasAccessTo('employees'))
+                @can('employees.view')
+                    <x-responsive-nav-link :href="route('tenant.employees.index')" :active="request()->routeIs('tenant.employees.*')">
+                        {{ __('Employees') }}
+                    </x-responsive-nav-link>
+                @endcan
+            @endif
+            @if (tenant()->hasModule('chat') && auth()->user()->hasAccessTo('chat'))
+                @can('chats.view')
+                    <x-responsive-nav-link :href="route('tenant.chats.index')" :active="request()->routeIs('tenant.chats.*')">
+                        {{ __('Chats') }}
+                    </x-responsive-nav-link>
+                @endcan
+            @endif
+            @if (tenant()->hasModule('projects') && auth()->user()->hasAccessTo('projects'))
+                @can('projects.view')
+                    <x-responsive-nav-link :href="route('tenant.projects.index')" :active="request()->routeIs('tenant.projects.*')">
+                        {{ __('Projects') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('tasks.view')
+                    <x-responsive-nav-link :href="route('tenant.tasks.index')" :active="request()->routeIs('tenant.tasks.*')">
+                        {{ __('Tasks') }}
+                    </x-responsive-nav-link>
+                @endcan
+            @endif
             @role('admin')
                 <x-responsive-nav-link :href="route('tenant.users.index')" :active="request()->routeIs('tenant.users.*')">
                     {{ __('Users') }}

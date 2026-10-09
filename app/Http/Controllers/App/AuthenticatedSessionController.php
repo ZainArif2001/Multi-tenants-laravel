@@ -28,7 +28,22 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('tenant.dashboard', absolute: false));
+        return redirect()->intended($this->landingUrl($request->user()));
+    }
+
+    /**
+     * Send the user to their first allowed module — e.g. a user who
+     * only has blog access lands on /posts, not the dashboard.
+     */
+    protected function landingUrl($user): string
+    {
+        return match (true) {
+            $user->hasAccessTo('posts') => route('tenant.posts.index', absolute: false),
+            $user->hasAccessTo('employees') => route('tenant.employees.index', absolute: false),
+            $user->hasAccessTo('projects') => route('tenant.projects.index', absolute: false),
+            $user->hasAccessTo('chat') => route('tenant.chats.index', absolute: false),
+            default => route('tenant.dashboard', absolute: false),
+        };
     }
 
     /**

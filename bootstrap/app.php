@@ -25,6 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'module' => \App\Http\Middleware\CheckTenantModule::class,
+            'access' => \App\Http\Middleware\CheckUserModuleAccess::class,
         ]);
 
         // Guest/auth redirects resolve to the right side based on context.

@@ -57,6 +57,22 @@
                             <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
                         </div>
 
+                        <!-- Modules -->
+                        <div class="mt-4">
+                            <x-input-label :value="__('Modules Access')" />
+                            <div class="mt-2 space-y-2">
+                                @foreach (\App\Models\Tenant::MODULES as $key => $label)
+                                    <label for="module_{{ $key }}" class="inline-flex items-center mr-6">
+                                        <input id="module_{{ $key }}" type="checkbox" name="modules[]" value="{{ $key }}"
+                                            class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+                                            @checked(in_array($key, old('modules', array_keys(\App\Models\Tenant::MODULES))))>
+                                        <span class="ms-2 text-sm text-gray-600">{{ $label }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            <x-input-error :messages="$errors->get('modules')" class="mt-2" />
+                        </div>
+
                         <div class="flex items-center justify-end mt-4">
                             {{-- <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                                 href="{{ route('login') }}">

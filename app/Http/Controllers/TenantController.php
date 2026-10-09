@@ -35,10 +35,16 @@ class TenantController extends Controller
             'domain_name' => 'required|string|max:255|unique:domains,domain',
             'email' => 'required|email|max:255|unique:tenants,email',
             'password' => 'required|string|min:8|confirmed',
+            'modules' => 'nullable|array',
+            'modules.*' => 'in:'.implode(',', array_keys(Tenant::MODULES)),
         ]);
         // dd($validtionData);
 
-        $tenant = Tenant::create($validtionData);
+        $tenant = Tenant::create([
+            ...$validtionData,
+            // modules is a virtual attribute → stored in the JSON `data` column
+            'modules' => $validtionData['modules'] ?? [],
+        ]);
         $tenant->domains()->create([
             'domain' => $validtionData['domain_name'].'.'.config('app.domain'),
         ]);
@@ -72,13 +78,18 @@ class TenantController extends Controller
             'domain_name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:tenants,email,'.$tenant->id,
             'password' => 'nullable|string|min:8|confirmed',
+            'modules' => 'nullable|array',
+            'modules.*' => 'in:'.implode(',', array_keys(Tenant::MODULES)),
         ]);
 
         if (empty($validtionData['password'])) {
             unset($validtionData['password']);
         }
 
-        $tenant->update($validtionData);
+        $tenant->update([
+            ...$validtionData,
+            'modules' => $validtionData['modules'] ?? [],
+        ]);
 
         $domain = $validtionData['domain_name'].'.'.config('app.domain');
         $tenant->domains()->updateOrCreate(['tenant_id' => $tenant->id], ['domain' => $domain]);

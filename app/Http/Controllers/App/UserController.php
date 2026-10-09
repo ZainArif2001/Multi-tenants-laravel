@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\App;
 
 use App\Http\Controllers\Controller;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,9 +29,7 @@ class UserController extends Controller
      */
     public function create(): View
     {
-        $roles = Role::pluck('name', 'name');
-
-        return view('app.users.create', compact('roles'));
+        return view('app.users.create', $this->formData());
     }
 
     /**
@@ -43,12 +42,15 @@ class UserController extends Controller
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
             'role' => ['required', Rule::exists('roles', 'name')],
+            'modules' => 'nullable|array',
+            'modules.*' => ['in:'.implode(',', array_keys(Tenant::MODULES))],
         ]);
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
+            'allowed_modules' => $validated['modules'] ?? [],
         ]);
 
         $user->assignRole($validated['role']);
@@ -61,9 +63,10 @@ class UserController extends Controller
      */
     public function edit(User $user): View
     {
-        $roles = Role::pluck('name', 'name');
-
-        return view('app.users.edit', compact('user', 'roles'));
+        return view('app.users.edit', [
+            'user' => $user,
+            ...$this->formData(),
+        ]);
     }
 
     /**
@@ -76,11 +79,14 @@ class UserController extends Controller
             'email' => 'required|email|max:255|unique:users,email,'.$user->id,
             'password' => 'nullable|string|min:8|confirmed',
             'role' => ['required', Rule::exists('roles', 'name')],
+            'modules' => 'nullable|array',
+            'modules.*' => ['in:'.implode(',', array_keys(Tenant::MODULES))],
         ]);
 
         $user->update([
             'name' => $validated['name'],
             'email' => $validated['email'],
+            'allowed_modules' => $validated['modules'] ?? [],
             ...($validated['password'] ? ['password' => Hash::make($validated['password'])] : []),
         ]);
 
@@ -102,5 +108,26 @@ class UserController extends Controller
         $user->delete();
 
         return redirect()->route('tenant.users.index')->with('success', 'User deleted successfully.');
+    }
+
+    /**
+     * Roles + the modules this tenant has enabled + the URLs the
+     * admin can share with the new user.
+     */
+    protected function formData(): array
+    {
+        $base = rtrim(url('/'), '/');
+
+        return [
+            'roles' => Role::pluck('name', 'name'),
+            'modules' => collect(Tenant::MODULES)
+                ->filter(fn ($label, $key) => tenant()->hasModule($key)),
+            'urls' => [
+                'login' => $base.'/login',
+                'posts' => $base.'/posts',
+                'employees' => $base.'/employees',
+                'projects' => $base.'/projects',
+            ],
+        ];
     }
 }
