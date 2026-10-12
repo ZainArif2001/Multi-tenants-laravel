@@ -24,6 +24,7 @@ class User extends Authenticatable
         'email',
         'password',
         'allowed_modules',
+        'bio',
     ];
 
     /**

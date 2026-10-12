@@ -1,23 +1,13 @@
 <x-tenant-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">{{ __('Edit Employee') }}</h2>
-    </x-slot>
+    <x-slot name="header">{{ __('Edit Employee') }}</x-slot>
 
-    <div class="py-12">
+    <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
-                    <form method="POST" action="{{ route('tenant.employees.update', $employee) }}">
-                        @csrf
-                        @method('PUT')
-                        @include('app.employees.partials.form')
-
-                        <div class="flex items-center justify-end mt-4">
-                            <x-primary-button class="ms-4">{{ __('Update') }}</x-primary-button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+            <form method="POST" action="{{ route('tenant.employees.update', $employee) }}">
+                @csrf
+                @method('PUT')
+                @include('app.employees.partials.form')
+            </form>
         </div>
     </div>
 </x-tenant-app-layout>

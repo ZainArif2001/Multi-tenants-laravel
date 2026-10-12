@@ -2,8 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\App\CategoryController;
 use App\Http\Controllers\App\ChatController;
+use App\Http\Controllers\App\CommentController;
+use App\Http\Controllers\App\DepartmentController;
 use App\Http\Controllers\App\EmployeeController;
+use App\Http\Controllers\App\JobRoleController;
+use App\Http\Controllers\App\ManagerController;
 use App\Http\Controllers\App\PostController;
 use App\Http\Controllers\App\ProfileController;
 use App\Http\Controllers\App\SiteController;
@@ -37,9 +42,25 @@ Route::middleware([
 ])->name('tenant.')->group(function () {
     // Public website — no auth; pages are gated by the tenant's enabled modules
     Route::get('/', [SiteController::class, 'home'])->name('home');
-    Route::get('/blog', [SiteController::class, 'blog'])->name('blog')->middleware('module:posts');
-    Route::get('/blog/{post}', [SiteController::class, 'post'])->name('blog.show')->middleware('module:posts');
+
+    Route::middleware('module:posts')->group(function () {
+        Route::get('/blog', [SiteController::class, 'blog'])->name('blog');
+        Route::get('/blog/{post}', [SiteController::class, 'post'])->name('blog.show');
+        Route::post('/blog/{post}/comment', [CommentController::class, 'store'])->name('blog.comment');
+        Route::get('/categories', [SiteController::class, 'categories'])->name('categories');
+        Route::get('/category/{category}', [SiteController::class, 'category'])->name('category');
+        Route::get('/author/{user}', [SiteController::class, 'author'])->name('author');
+    });
+
     Route::get('/team', [SiteController::class, 'team'])->name('team')->middleware('module:employees');
+
+    // Tenant public storage — uploaded images stream from this tenant's own disk
+    Route::get('/media/{path}', function (string $path) {
+        $disk = \Illuminate\Support\Facades\Storage::disk('public');
+        abort_unless($disk->exists($path), 404);
+
+        return $disk->response($path);
+    })->where('path', '.*')->name('media');
 
     // Public AI chatbot — rate limited, only when tenant has the chat module
     Route::post('/chat', [ChatController::class, 'send'])
@@ -79,16 +100,45 @@ Route::middleware([
         Route::get('posts/{post}/edit', [PostController::class, 'edit'])->name('posts.edit')->middleware('permission:posts.edit');
         Route::put('posts/{post}', [PostController::class, 'update'])->name('posts.update')->middleware('permission:posts.edit');
         Route::delete('posts/{post}', [PostController::class, 'destroy'])->name('posts.destroy')->middleware('permission:posts.delete');
+
+        // Categories & comments — blog management (posts/ prefix: plain /categories
+        // belongs to the public site; same-method same-URI routes would overwrite it)
+        Route::get('posts/categories', [CategoryController::class, 'index'])->name('categories.index')->middleware('permission:posts.view');
+        Route::post('posts/categories', [CategoryController::class, 'store'])->name('categories.store')->middleware('permission:posts.create');
+        Route::put('posts/categories/{category}', [CategoryController::class, 'update'])->name('categories.update')->middleware('permission:posts.edit');
+        Route::delete('posts/categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy')->middleware('permission:posts.delete');
+        Route::get('comments', [CommentController::class, 'index'])->name('comments.index')->middleware('permission:posts.view');
+        Route::patch('comments/{comment}/approve', [CommentController::class, 'approve'])->name('comments.approve')->middleware('permission:posts.edit');
+        Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy')->middleware('permission:posts.delete');
         });
 
-        // Employees — hr + admin
+        // Employees — hr + admin (EMS: departments, job roles, managers, project assignment)
         Route::middleware(['module:employees', 'access:employees'])->group(function () {
             Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index')->middleware('permission:employees.view');
         Route::get('employees/create', [EmployeeController::class, 'create'])->name('employees.create')->middleware('permission:employees.create');
         Route::post('employees', [EmployeeController::class, 'store'])->name('employees.store')->middleware('permission:employees.create');
+        Route::get('employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show')->middleware('permission:employees.view');
         Route::get('employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit')->middleware('permission:employees.edit');
         Route::put('employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update')->middleware('permission:employees.edit');
         Route::delete('employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy')->middleware('permission:employees.delete');
+
+        // Departments
+        Route::get('departments', [DepartmentController::class, 'index'])->name('departments.index')->middleware('permission:employees.view');
+        Route::post('departments', [DepartmentController::class, 'store'])->name('departments.store')->middleware('permission:employees.create');
+        Route::put('departments/{department}', [DepartmentController::class, 'update'])->name('departments.update')->middleware('permission:employees.edit');
+        Route::delete('departments/{department}', [DepartmentController::class, 'destroy'])->name('departments.destroy')->middleware('permission:employees.delete');
+
+        // Job Roles
+        Route::get('job-roles', [JobRoleController::class, 'index'])->name('job-roles.index')->middleware('permission:employees.view');
+        Route::post('job-roles', [JobRoleController::class, 'store'])->name('job-roles.store')->middleware('permission:employees.create');
+        Route::put('job-roles/{jobRole}', [JobRoleController::class, 'update'])->name('job-roles.update')->middleware('permission:employees.edit');
+        Route::delete('job-roles/{jobRole}', [JobRoleController::class, 'destroy'])->name('job-roles.destroy')->middleware('permission:employees.delete');
+
+        // Managers
+        Route::get('managers', [ManagerController::class, 'index'])->name('managers.index')->middleware('permission:employees.view');
+        Route::post('managers', [ManagerController::class, 'store'])->name('managers.store')->middleware('permission:employees.create');
+        Route::put('managers/{manager}', [ManagerController::class, 'update'])->name('managers.update')->middleware('permission:employees.edit');
+        Route::delete('managers/{manager}', [ManagerController::class, 'destroy'])->name('managers.destroy')->middleware('permission:employees.delete');
         });
 
         // Projects — admin manages, members view

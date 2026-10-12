@@ -75,7 +75,7 @@ class AiChatService
         if ($employees->isNotEmpty()) {
             $lines[] = "\nTEAM:";
             foreach ($employees as $employee) {
-                $lines[] = "- {$employee->name}".($employee->position ? " ({$employee->position})" : '');
+                $lines[] = "- {$employee->name}".($employee->job_title ? " ({$employee->job_title})" : '');
             }
         }
 

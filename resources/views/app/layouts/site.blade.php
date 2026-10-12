@@ -29,6 +29,9 @@
                         <a href="{{ route('tenant.blog') }}" class="text-gray-600 hover:text-gray-900 {{ request()->routeIs('tenant.blog*') ? 'font-semibold text-gray-900' : '' }}">
                             {{ __('Blog') }}
                         </a>
+                        <a href="{{ route('tenant.categories') }}" class="text-gray-600 hover:text-gray-900 {{ request()->routeIs('tenant.categories') || request()->routeIs('tenant.category') ? 'font-semibold text-gray-900' : '' }}">
+                            {{ __('Categories') }}
+                        </a>
                     @endif
                     @if (tenant()->hasModule('employees'))
                         <a href="{{ route('tenant.team') }}" class="text-gray-600 hover:text-gray-900 {{ request()->routeIs('tenant.team') ? 'font-semibold text-gray-900' : '' }}">
