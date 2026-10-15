@@ -1,4 +1,28 @@
 <x-tenant-site-layout>
+    @if ($settings->tagline || $settings->description)
+        <!-- Hero band -->
+        <section class="bg-slate-900 py-16 mb-2">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                @if ($settings->tagline)
+                    <h1 class="text-3xl sm:text-4xl font-bold text-white">{{ $settings->tagline }}</h1>
+                @else
+                    <h1 class="text-3xl sm:text-4xl font-bold text-white">{{ tenant('name') }}</h1>
+                @endif
+                @if ($settings->description)
+                    <p class="mt-4 text-slate-300 max-w-2xl mx-auto">{{ $settings->description }}</p>
+                @endif
+                <div class="mt-6 flex flex-wrap justify-center gap-3">
+                    @if (tenant()->hasModule('posts'))
+                        <a href="{{ route('tenant.blog') }}" class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm font-medium">{{ __('Read our blog') }}</a>
+                    @endif
+                    @if ($settings->contact_email)
+                        <a href="mailto:{{ $settings->contact_email }}" class="px-5 py-2.5 bg-white/10 text-white rounded-lg hover:bg-white/20 text-sm font-medium">{{ __('Contact us') }}</a>
+                    @endif
+                </div>
+            </div>
+        </section>
+    @endif
+
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
         @if ($featured)

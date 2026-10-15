@@ -140,7 +140,7 @@ class TenancyServiceProvider extends ServiceProvider
             Middleware\InitializeTenancyBySubdomain::class,
             Middleware\InitializeTenancyByDomainOrSubdomain::class,
             Middleware\InitializeTenancyByPath::class,
-            Middleware\InitializeTenancyByRequestData::class,
+            Middleware\InitializeTenancyByRequestData::class,   
         ];
 
         foreach (array_reverse($tenancyMiddleware) as $middleware) {

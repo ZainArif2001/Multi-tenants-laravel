@@ -10,7 +10,9 @@ use App\Models\Manager;
 use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 
 class EmployeeController extends Controller
 {
@@ -63,6 +65,110 @@ class EmployeeController extends Controller
         $employee->delete();
 
         return redirect()->route('tenant.employees.index')->with('success', 'Employee deleted successfully.');
+    }
+
+    /**
+     * Bulk import — CSV or XLSX. Expected headers (first row):
+     * first_name, last_name, email, phone, job_title, salary, hire_date,
+     * department, role, manager. Departments/roles/managers are
+     * auto-created by name when they don't exist.
+     */
+    public function import(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt,xlsx,xls|max:10240',
+        ]);
+
+        $rows = Excel::toArray(null, $request->file('file'))[0] ?? [];
+        $headers = array_map(fn ($h) => Str::of($h)->lower()->snake()->toString(), $rows[0] ?? []);
+
+        $created = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach (array_slice($rows, 1) as $i => $row) {
+            $data = array_combine($headers, array_pad($row, count($headers), null));
+            $rowNo = $i + 2;
+
+            // Skip fully empty rows
+            if (blank(implode('', array_map(fn ($v) => (string) $v, $row)))) {
+                continue;
+            }
+
+            if (blank($data['first_name'] ?? null)) {
+                $skipped++;
+                $errors[] = "Row {$rowNo}: missing first_name";
+                continue;
+            }
+
+            if (filled($data['email'] ?? null) && Employee::where('email', $data['email'])->exists()) {
+                $skipped++;
+                $errors[] = "Row {$rowNo}: {$data['email']} already exists";
+                continue;
+            }
+
+            Employee::create([
+                'first_name' => $data['first_name'],
+                'last_name' => $data['last_name'] ?? null,
+                'email' => $data['email'] ?? null,
+                'phone' => isset($data['phone']) ? (string) $data['phone'] : null,
+                'job_title' => $data['job_title'] ?? null,
+                'salary' => is_numeric($data['salary'] ?? null) ? $data['salary'] : null,
+                'hire_date' => $this->parseDate($data['hire_date'] ?? null),
+                'department_id' => $this->resolveByName(Department::class, $data['department'] ?? null),
+                'job_role_id' => $this->resolveByName(JobRole::class, $data['role'] ?? null),
+                'manager_id' => $this->resolveByName(Manager::class, $data['manager'] ?? null),
+            ]);
+            $created++;
+        }
+
+        $message = "{$created} employees imported".($skipped ? ", {$skipped} skipped." : '.');
+
+        return redirect()->route('tenant.employees.index')
+            ->with('success', $message)
+            ->with('import_errors', $errors);
+    }
+
+    /**
+     * Downloadable CSV template matching the import headers.
+     */
+    public function template()
+    {
+        $csv = implode("\n", [
+            'first_name,last_name,email,phone,job_title,salary,hire_date,department,role,manager',
+            'Ali,Khan,ali@example.com,03001234567,Senior Developer,120000,2025-01-15,Engineering,Developer,Zain Arif',
+            'Sara,Ahmed,sara@example.com,03111234567,HR Officer,80000,2025-03-01,HR,HR Executive,Fatima Noor',
+        ]);
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="employees-template.csv"',
+        ]);
+    }
+
+    protected function resolveByName(string $model, ?string $name): ?int
+    {
+        $name = trim((string) $name);
+
+        return filled($name) ? $model::firstOrCreate(['name' => $name])->id : null;
+    }
+
+    protected function parseDate(mixed $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+        // Excel serial date (e.g. 45672)
+        if (is_numeric($value)) {
+            try {
+                return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $value)->format('Y-m-d');
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+        $ts = strtotime((string) $value);
+
+        return $ts ? date('Y-m-d', $ts) : null;
     }
 
     protected function validated(Request $request): array

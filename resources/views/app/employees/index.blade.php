@@ -1,17 +1,33 @@
 <x-tenant-app-layout>
-    <x-slot name="header">
-        {{ __('Employees') }}
-        @can('employees.create')
-            <x-button-link href="{{ route('tenant.employees.create') }}" class="ml-4 float-right">
+    <x-slot name="header">{{ __('Employees') }}</x-slot>
+
+    @can('employees.create')
+        <x-slot name="actions">
+            <a href="{{ route('tenant.employees.import.form') }}" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                {{ __('Import') }}
+            </a>
+            <x-button-link href="{{ route('tenant.employees.create') }}">
                 {{ __('+ New Employee') }}
             </x-button-link>
-        @endcan
-    </x-slot>
+        </x-slot>
+    @endcan
 
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             @if (session('success'))
                 <div class="mb-4 p-4 bg-green-100 border border-green-300 text-green-800 rounded-lg">{{ session('success') }}</div>
+            @endif
+
+            @if (session('import_errors'))
+                <div class="mb-4 p-4 bg-amber-50 border border-amber-300 text-amber-800 rounded-lg text-sm">
+                    <div class="font-semibold mb-1">{{ __('Import warnings:') }}</div>
+                    <ul class="list-disc list-inside space-y-0.5">
+                        @foreach (session('import_errors') as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                    </ul>
+                </div>
             @endif
 
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">

@@ -1,6 +1,22 @@
 <x-tenant-site-layout>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 class="text-3xl font-bold text-gray-900 mb-8">{{ __('Blog') }}</h1>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">{{ __('Blog') }}</h1>
+            <form method="GET" action="{{ route('tenant.blog') }}" class="flex gap-2">
+                <input type="search" name="q" value="{{ $q }}" placeholder="{{ __('Search articles...') }}"
+                    class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg text-sm w-64">
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                    {{ __('Search') }}
+                </button>
+            </form>
+        </div>
+
+        @if ($q->isNotEmpty())
+            <p class="text-sm text-gray-500 mb-6">
+                {{ $posts->total() }} {{ __('result(s) for') }} <span class="font-semibold text-gray-800">"{{ $q }}"</span>
+                <a href="{{ route('tenant.blog') }}" class="ml-2 text-indigo-600 hover:text-indigo-800">{{ __('clear') }}</a>
+            </p>
+        @endif
 
         <div class="grid lg:grid-cols-3 gap-10">
             <!-- Posts grid -->

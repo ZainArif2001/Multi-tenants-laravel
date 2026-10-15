@@ -9,6 +9,7 @@ use App\Http\Controllers\App\DepartmentController;
 use App\Http\Controllers\App\EmployeeController;
 use App\Http\Controllers\App\JobRoleController;
 use App\Http\Controllers\App\ManagerController;
+use App\Http\Controllers\App\SiteSettingsController;
 use App\Http\Controllers\App\PostController;
 use App\Http\Controllers\App\ProfileController;
 use App\Http\Controllers\App\SiteController;
@@ -72,9 +73,14 @@ Route::middleware([
             return view('app.dashboard', [
                 'usersCount' => \App\Models\User::count(),
                 'postsCount' => \App\Models\Post::count(),
+                'viewsCount' => \App\Models\Post::sum('views'),
+                'commentsCount' => \App\Models\Comment::where('approved', false)->count(),
                 'employeesCount' => \App\Models\Employee::count(),
                 'projectsCount' => \App\Models\Project::count(),
                 'tasksCount' => \App\Models\Task::count(),
+                'chatsCount' => \App\Models\ChatMessage::distinct('session_id')->count('session_id'),
+                'recentPosts' => \App\Models\Post::with('user', 'category')->latest()->take(5)->get(),
+                'recentComments' => \App\Models\Comment::with('post')->latest()->take(5)->get(),
             ]);
         })->name('dashboard');
 
@@ -91,6 +97,12 @@ Route::middleware([
         Route::resource('users', UserController::class)
             ->except('show')
             ->middleware('role:admin');
+
+        // Site settings — admin only (branding shown on the public site)
+        Route::middleware('role:admin')->group(function () {
+            Route::get('settings', [SiteSettingsController::class, 'edit'])->name('settings.edit');
+            Route::put('settings', [SiteSettingsController::class, 'update'])->name('settings.update');
+        });
 
         // Posts — writers create/edit own, admins can publish & manage all
         Route::middleware(['module:posts', 'access:posts'])->group(function () {
@@ -116,6 +128,9 @@ Route::middleware([
         Route::middleware(['module:employees', 'access:employees'])->group(function () {
             Route::get('employees', [EmployeeController::class, 'index'])->name('employees.index')->middleware('permission:employees.view');
         Route::get('employees/create', [EmployeeController::class, 'create'])->name('employees.create')->middleware('permission:employees.create');
+        Route::get('employees/template', [EmployeeController::class, 'template'])->name('employees.template')->middleware('permission:employees.view');
+        Route::get('employees/import', fn () => view('app.employees.import'))->name('employees.import.form')->middleware('permission:employees.create');
+        Route::post('employees/import', [EmployeeController::class, 'import'])->name('employees.import')->middleware('permission:employees.create');
         Route::post('employees', [EmployeeController::class, 'store'])->name('employees.store')->middleware('permission:employees.create');
         Route::get('employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show')->middleware('permission:employees.view');
         Route::get('employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit')->middleware('permission:employees.edit');

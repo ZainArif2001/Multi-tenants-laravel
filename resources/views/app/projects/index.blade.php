@@ -1,14 +1,13 @@
 <x-tenant-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Projects') }}
-            @can('projects.manage')
-                <x-button-link href="{{ route('tenant.projects.create') }}" class="ml-4 float-right">
-                    {{ __('Add Project') }}
-                </x-button-link>
-            @endcan
-        </h2>
-    </x-slot>
+    <x-slot name="header">{{ __('Projects') }}</x-slot>
+
+    @can('projects.manage')
+        <x-slot name="actions">
+            <x-button-link href="{{ route('tenant.projects.create') }}">
+                {{ __('Add Project') }}
+            </x-button-link>
+        </x-slot>
+    @endcan
 
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">

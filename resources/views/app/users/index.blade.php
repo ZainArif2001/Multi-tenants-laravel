@@ -1,11 +1,10 @@
 <x-tenant-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Users') }}
-            <x-button-link href="{{ route('tenant.users.create') }}" class="ml-4 float-right">
-                {{ __('Create User') }}
-            </x-button-link>
-        </h2>
+    <x-slot name="header">{{ __('Users') }}</x-slot>
+
+    <x-slot name="actions">
+        <x-button-link href="{{ route('tenant.users.create') }}">
+            {{ __('Create User') }}
+        </x-button-link>
     </x-slot>
 
     <div class="py-12">

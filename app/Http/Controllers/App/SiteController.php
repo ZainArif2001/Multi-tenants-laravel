@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Employee;
 use App\Models\Post;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
@@ -18,6 +19,7 @@ class SiteController extends Controller
     public function home(): View
     {
         $hasBlog = tenant()->hasModule('posts');
+        $settings = \App\Models\SiteSetting::current();
 
         $featured = $hasBlog
             ? Post::published()->where('featured', true)->with('user', 'category')->latest()->first()
@@ -42,16 +44,25 @@ class SiteController extends Controller
             ? Employee::latest()->take(4)->get()
             : collect();
 
-        return view('app.site.home', compact('featured', 'latest', 'popular', 'categories', 'employees'));
+        return view('app.site.home', compact('featured', 'latest', 'popular', 'categories', 'employees', 'settings'));
     }
 
-    public function blog(): View
+    public function blog(Request $request): View
     {
-        $posts = Post::published()->with('user', 'category', 'tags')->latest()->paginate(9);
-        $categories = Category::withCount(['posts' => fn ($q) => $q->published()])->orderBy('name')->get();
+        $q = $request->string('q')->trim();
+
+        $posts = Post::published()->with('user', 'category', 'tags')
+            ->when($q->isNotEmpty(), fn ($query) => $query->where(
+                fn ($w) => $w->where('title', 'like', "%{$q}%")
+                    ->orWhere('excerpt', 'like', "%{$q}%")
+                    ->orWhere('body', 'like', "%{$q}%")
+            ))
+            ->latest()->paginate(9)->withQueryString();
+
+        $categories = Category::withCount(['posts' => fn ($q2) => $q2->published()])->orderBy('name')->get();
         $popular = Post::published()->orderByDesc('views')->take(5)->get();
 
-        return view('app.site.blog', compact('posts', 'categories', 'popular'));
+        return view('app.site.blog', compact('posts', 'categories', 'popular', 'q'));
     }
 
     public function post(Post $post): View
