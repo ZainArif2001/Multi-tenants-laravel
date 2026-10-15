@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Conversation extends Model
 {
-    protected $fillable = ['type'];
+    protected $fillable = ['type', 'name'];
 
     public function users(): BelongsToMany
     {

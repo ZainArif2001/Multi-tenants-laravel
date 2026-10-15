@@ -23,6 +23,17 @@ class Tenant extends BaseTenant implements TenantWithDatabase
         'messaging' => 'Team Chat',
     ];
 
+    /**
+     * Subscription-style plans — picking one pre-selects its modules
+     * on the create-tenant form.
+     */
+    public const PLANS = [
+        'starter' => ['label' => 'Starter', 'modules' => ['posts']],
+        'business' => ['label' => 'Business', 'modules' => ['posts', 'employees', 'messaging']],
+        'agency' => ['label' => 'Agency', 'modules' => ['posts', 'employees', 'projects', 'chat', 'messaging']],
+        'custom' => ['label' => 'Custom', 'modules' => []],
+    ];
+
     public static function getCustomColumns(): array
     {
         return [

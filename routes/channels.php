@@ -8,6 +8,13 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
 
+// Team Chat — presence channel: every staff member joins it on
+// /messages, so the UI can show real online/offline state.
+Broadcast::channel('presence-team', fn (User $user) => [
+    'id' => $user->id,
+    'name' => $user->name,
+]);
+
 // Team Chat — per-user channel so every device gets pushes
 // (delivered/read works even when a different chat is open)
 Broadcast::channel('user.{userId}', fn (User $user, int $userId) => $user->id === $userId);

@@ -57,6 +57,23 @@
                             <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
                         </div>
 
+                        <!-- Plan → auto-selects modules -->
+                        <div class="mt-4">
+                            <x-input-label for="plan" :value="__('Plan')" />
+                            <select id="plan" name="plan"
+                                    onchange="if (this.value !== 'custom') { document.querySelectorAll('[name=\'modules[]\']').forEach(cb => cb.checked = plans[this.value].includes(cb.value)); }"
+                                    class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">
+                                @foreach (\App\Models\Tenant::PLANS as $key => $plan)
+                                    <option value="{{ $key }}">{{ $plan['label'] }}
+                                        {{ $plan['modules'] ? '— ' . implode(', ', array_map(fn($m) => \App\Models\Tenant::MODULES[$m], $plan['modules'])) : '— pick modules manually' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <script>
+                                var plans = @json(collect(\App\Models\Tenant::PLANS)->mapWithKeys(fn($p, $k) => [$k => $p['modules']]));
+                            </script>
+                        </div>
+
                         <!-- Modules -->
                         <div class="mt-4">
                             <x-input-label :value="__('Modules Access')" />

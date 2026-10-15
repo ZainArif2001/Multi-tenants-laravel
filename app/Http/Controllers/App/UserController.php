@@ -55,6 +55,15 @@ class UserController extends Controller
 
         $user->assignRole($validated['role']);
 
+        // Welcome email — best effort; MAIL_MAILER=log works out of the box
+        try {
+            \Illuminate\Support\Facades\Mail::to($user)->send(
+                new \App\Mail\WelcomeUser($user, $validated['password'])
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Welcome email failed: ' . $e->getMessage());
+        }
+
         return redirect()->route('tenant.users.index')->with('success', 'User created successfully.');
     }
 

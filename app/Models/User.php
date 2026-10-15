@@ -21,6 +21,7 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'avatar_path',
         'email',
         'password',
         'allowed_modules',
@@ -83,6 +84,19 @@ class User extends Authenticatable
     public function conversations(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(Conversation::class)->withPivot('joined_at');
+    }
+
+    /**
+     * Uploaded avatar served via the tenant-aware media route.
+     */
+    public function getAvatarUrlAttribute(): ?string
+    {
+        return $this->avatar_path ? route('tenant.media', ['path' => $this->avatar_path]) : null;
+    }
+
+    public function getInitialAttribute(): string
+    {
+        return strtoupper(substr($this->name ?? 'U', 0, 1));
     }
 
     public function posts()

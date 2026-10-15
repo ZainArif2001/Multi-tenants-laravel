@@ -129,5 +129,36 @@
                 </div>
             </section>
         @endif
+
+        {{-- Contact form → lands in the staff inbox --}}
+        <section class="border-t border-gray-100 pt-14">
+            <div class="max-w-2xl mx-auto text-center">
+                <h2 class="text-2xl font-bold text-gray-900">{{ __('Get in touch') }}</h2>
+                <p class="text-gray-500 text-sm mt-2">{{ __('Have a question? Send us a message and our team will get back to you.') }}</p>
+
+                @if (session('contact_sent'))
+                    <div class="mt-6 bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-5 py-4">
+                        {{ __('✓ Message sent! We will get back to you soon.') }}
+                    </div>
+                @else
+                    <form method="POST" action="{{ route('tenant.contact.send') }}" class="mt-8 grid gap-4 text-left">
+                        @csrf
+                        <div class="grid sm:grid-cols-2 gap-4">
+                            <input name="name" required placeholder="{{ __('Your name') }}"
+                                   class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl text-sm px-4 py-3">
+                            <input name="email" type="email" required placeholder="{{ __('Email address') }}"
+                                   class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl text-sm px-4 py-3">
+                        </div>
+                        <input name="subject" placeholder="{{ __('Subject (optional)') }}"
+                               class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl text-sm px-4 py-3">
+                        <textarea name="message" required rows="4" placeholder="{{ __('How can we help?') }}"
+                                  class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl text-sm px-4 py-3"></textarea>
+                        <button class="justify-self-center px-8 py-3 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition">
+                            {{ __('Send message') }}
+                        </button>
+                    </form>
+                @endif
+            </div>
+        </section>
     </div>
 </x-tenant-site-layout>

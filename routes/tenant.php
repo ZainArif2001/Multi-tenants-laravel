@@ -69,6 +69,19 @@ Route::middleware([
         ->name('chat.send')
         ->middleware(['module:chat', 'throttle:10,1']);
 
+    // Public contact form → staff inbox
+    Route::post('/contact', function (\Illuminate\Http\Request $request) {
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+            'email' => 'required|email|max:150',
+            'subject' => 'nullable|string|max:150',
+            'message' => 'required|string|max:5000',
+        ]);
+        \App\Models\ContactMessage::create($data);
+
+        return back()->with('contact_sent', true);
+    })->name('contact.send')->middleware('throttle:5,1');
+
     Route::middleware('auth')->group(function () {
         Route::get('/dashboard', function () {
             return view('app.dashboard', [
@@ -94,13 +107,57 @@ Route::middleware([
             ->name('chats.index')
             ->middleware(['module:chat', 'access:chat', 'permission:chats.view']);
 
+        // Global search — across enabled modules
+        Route::get('/search', function (\Illuminate\Http\Request $request) {
+            $q = trim($request->query('q', ''));
+            $results = collect();
+            if (strlen($q) >= 2) {
+                if (tenant()->hasModule('posts') && auth()->user()->hasAccessTo('posts')) {
+                    $results = $results->merge(
+                        \App\Models\Post::where('title', 'like', "%{$q}%")->take(5)->get()
+                            ->map(fn ($p) => ['type' => 'Post', 'title' => $p->title, 'url' => route('tenant.posts.edit', $p)])
+                    );
+                }
+                if (tenant()->hasModule('employees') && auth()->user()->hasAccessTo('employees')) {
+                    $results = $results->merge(
+                        \App\Models\Employee::where('first_name', 'like', "%{$q}%")->orWhere('last_name', 'like', "%{$q}%")->take(5)->get()
+                            ->map(fn ($e) => ['type' => 'Employee', 'title' => $e->first_name . ' ' . $e->last_name, 'url' => route('tenant.employees.show', $e)])
+                    );
+                }
+                if (tenant()->hasModule('projects') && auth()->user()->hasAccessTo('projects')) {
+                    $results = $results->merge(
+                        \App\Models\Project::where('name', 'like', "%{$q}%")->take(5)->get()
+                            ->map(fn ($p) => ['type' => 'Project', 'title' => $p->name, 'url' => route('tenant.projects.edit', $p)])
+                    );
+                }
+            }
+
+            return view('app.search', ['q' => $q, 'results' => $results]);
+        })->name('search');
+
+        // Contact inbox — admin reads visitor enquiries
+        Route::get('/inbox', function () {
+            $messages = \App\Models\ContactMessage::latest()->paginate(20);
+            \App\Models\ContactMessage::whereNull('read_at')->update(['read_at' => now()]);
+
+            return view('app.inbox', compact('messages'));
+        })->name('inbox')->middleware('role:admin');
+
+        // Activity log — admin audit trail
+        Route::get('/activity', function () {
+            $logs = \App\Models\ActivityLog::with('user')->latest()->paginate(30);
+
+            return view('app.activity', compact('logs'));
+        })->name('activity')->middleware('role:admin');
+
         // Team Chat — WhatsApp-style staff messaging (module: messaging)
         Route::middleware(['module:messaging', 'access:messaging'])->group(function () {
             Route::get('messages', [TeamChatController::class, 'index'])->name('messages.index');
             Route::post('messages/start', [TeamChatController::class, 'start'])->name('messages.start');
+            Route::post('messages/start-group', [TeamChatController::class, 'startGroup'])->name('messages.start-group');
             Route::get('messages/conversations', [TeamChatController::class, 'conversations'])->name('messages.conversations');
             Route::get('messages/{conversation}/feed', [TeamChatController::class, 'messages'])->name('messages.feed');
-            Route::post('messages/{conversation}/send', [TeamChatController::class, 'send'])->name('messages.send');
+            Route::post('messages/{conversation}/send', [TeamChatController::class, 'send'])->name('messages.send')->middleware('throttle:20,1');
             Route::post('messages/{message}/delivered', [TeamChatController::class, 'delivered'])->name('messages.delivered');
             Route::post('messages/{conversation}/read', [TeamChatController::class, 'read'])->name('messages.read');
         });

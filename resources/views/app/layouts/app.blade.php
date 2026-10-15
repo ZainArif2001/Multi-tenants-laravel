@@ -113,6 +113,17 @@
                         </a>
                     @endif
 
+                    @if (auth()->user()->hasRole('admin'))
+                        <a href="{{ route('tenant.inbox') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.inbox') ? $navActive : $navIdle }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            Inbox
+                        </a>
+                        <a href="{{ route('tenant.activity') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.activity') ? $navActive : $navIdle }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Activity
+                        </a>
+                    @endif
+
                     @if (tenant()->hasModule('chat') && auth()->user()->hasAccessTo('chat'))
                         @can('chats.view')
                             <a href="{{ route('tenant.chats.index') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.chats.*') ? $navActive : $navIdle }}">
@@ -160,16 +171,61 @@
                     </div>
 
                     <div class="flex items-center gap-3">
+                        {{-- Global search --}}
+                        <form method="GET" action="{{ route('tenant.search') }}" class="hidden md:block">
+                            <input name="q" value="{{ request('q') }}" type="search" placeholder="Search..."
+                                   class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg text-sm w-44 px-3 py-1.5">
+                        </form>
                         @isset($actions)
                             {{ $actions }}
                         @endisset
 
+                        {{-- Notification bell — unread message count, polls every 15s --}}
+                        @if (tenant()->hasModule('messaging') && auth()->user()->hasAccessTo('messaging'))
+                            @php($bellUnread = \App\Models\MessageReceipt::where('user_id', auth()->id())->whereNull('read_at')->count())
+                            <div x-data="{ open: false, unread: {{ $bellUnread }}, convos: [] }"
+                                 x-init="setInterval(async () => {
+                                     try {
+                                         const r = await fetch('{{ route('tenant.messages.conversations') }}');
+                                         const d = await r.json();
+                                         unread = d.unread_total; convos = d.conversations.filter(c => c.unread > 0);
+                                     } catch (e) {}
+                                 }, 15000)" class="relative">
+                                <button @click="open = ! open" class="relative p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                                    <span x-show="unread > 0" x-text="unread" class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center"></span>
+                                </button>
+                                <div x-show="open" @click.outside="open = false" x-cloak
+                                     class="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                                    <div class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase border-b">{{ __('Unread messages') }}</div>
+                                    <template x-if="! convos.length">
+                                        <p class="px-4 py-6 text-sm text-gray-400 text-center">{{ __('All caught up 🎉') }}</p>
+                                    </template>
+                                    <template x-for="c in convos" :key="c.id">
+                                        <a :href="`{{ url('/messages') }}?c=${c.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-100">
+                                            <span class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold" x-text="c.initial"></span>
+                                            <span class="flex-1 min-w-0">
+                                                <span class="block text-sm font-medium text-gray-900 truncate" x-text="c.name"></span>
+                                                <span class="block text-xs text-gray-500 truncate" x-text="c.last_body || ''"></span>
+                                            </span>
+                                            <span class="bg-indigo-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5" x-text="c.unread"></span>
+                                        </a>
+                                    </template>
+                                    <a href="{{ route('tenant.messages.index') }}" class="block px-4 py-2.5 text-center text-xs font-medium text-indigo-600 hover:bg-indigo-50">{{ __('View all messages') }}</a>
+                                </div>
+                            </div>
+                        @endif
+
                         <x-dropdown align="right" width="48">
                         <x-slot name="trigger">
                             <button class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none transition">
-                                <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold mr-2">
-                                    {{ strtoupper(substr(Auth::user()->name, 0, 1)) }}
-                                </div>
+                                @if (Auth::user()->avatar_url)
+                                    <img src="{{ Auth::user()->avatar_url }}" class="w-8 h-8 rounded-full object-cover mr-2" alt="avatar">
+                                @else
+                                    <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold mr-2">
+                                        {{ Auth::user()->initial }}
+                                    </div>
+                                @endif
                                 <div class="hidden sm:block">{{ Auth::user()->name }}</div>
                                 <svg class="ms-1 h-4 w-4 fill-current" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                             </button>
@@ -192,6 +248,16 @@
                     {{ $slot }}
                 </main>
             </div>
+        </div>
+
+        {{-- Global toasts — any component can dispatch a 'toast' event --}}
+        <div x-data="{ toasts: [] }"
+             @toast.window="toasts.push({ id: Date.now(), text: $event.detail }); setTimeout(() => toasts.shift(), 4000)"
+             class="fixed bottom-5 right-5 z-[60] space-y-2 pointer-events-none">
+            <template x-for="t in toasts" :key="t.id">
+                <div x-transition class="bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg max-w-xs pointer-events-auto"
+                     x-text="t.text"></div>
+            </template>
         </div>
     </body>
 </html>

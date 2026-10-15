@@ -11,7 +11,18 @@ class Message extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['conversation_id', 'sender_id', 'body', 'edited_at'];
+    protected $fillable = ['conversation_id', 'sender_id', 'body', 'edited_at', 'attachment_path', 'attachment_name'];
+
+    public function getAttachmentUrlAttribute(): ?string
+    {
+        return $this->attachment_path ? route('tenant.media', ['path' => $this->attachment_path]) : null;
+    }
+
+    public function getIsImageAttribute(): bool
+    {
+        return $this->attachment_path
+            && preg_match('/\.(jpe?g|png|webp|gif)$/i', $this->attachment_name ?? $this->attachment_path);
+    }
 
     protected $casts = ['edited_at' => 'datetime'];
 

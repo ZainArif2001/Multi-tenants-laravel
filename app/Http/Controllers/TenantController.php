@@ -35,6 +35,7 @@ class TenantController extends Controller
             'domain_name' => 'required|string|max:255|unique:domains,domain',
             'email' => 'required|email|max:255|unique:tenants,email',
             'password' => 'required|string|min:8|confirmed',
+            'plan' => ['nullable', \Illuminate\Validation\Rule::in(array_keys(Tenant::PLANS))],
             'modules' => 'nullable|array',
             'modules.*' => 'in:'.implode(',', array_keys(Tenant::MODULES)),
         ]);
@@ -42,7 +43,8 @@ class TenantController extends Controller
 
         $tenant = Tenant::create([
             ...$validtionData,
-            // modules is a virtual attribute → stored in the JSON `data` column
+            // modules + plan are virtual attributes → stored in the JSON `data` column
+            'plan' => $validtionData['plan'] ?? 'custom',
             'modules' => $validtionData['modules'] ?? [],
         ]);
         $tenant->domains()->create([

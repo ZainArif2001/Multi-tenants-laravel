@@ -9,9 +9,24 @@
         </p>
     </header>
 
-    <form method="post" action="{{ route('tenant.profile.update') }}" class="mt-6 space-y-6">
+    <form method="post" action="{{ route('tenant.profile.update') }}" enctype="multipart/form-data" class="mt-6 space-y-6">
         @csrf
         @method('patch')
+
+        <div x-data="{ preview: '{{ $user->avatar_url }}' }">
+            <x-input-label for="avatar" :value="__('Avatar')" />
+            <div class="mt-2 flex items-center gap-4">
+                <template x-if="preview">
+                    <img :src="preview" class="w-14 h-14 rounded-full object-cover border border-gray-200" alt="avatar">
+                </template>
+                <template x-if="! preview">
+                    <div class="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xl">{{ $user->initial }}</div>
+                </template>
+                <input id="avatar" name="avatar" type="file" accept="image/*" class="text-sm text-gray-600"
+                       @change="preview = URL.createObjectURL($event.target.files[0])">
+            </div>
+            <x-input-error class="mt-2" :messages="$errors->get('avatar')" />
+        </div>
 
         <div>
             <x-input-label for="name" :value="__('Name')" />

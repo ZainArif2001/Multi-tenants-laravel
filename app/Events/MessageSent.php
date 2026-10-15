@@ -40,6 +40,9 @@ class MessageSent implements ShouldBroadcastNow
             'sender_id' => $this->message->sender_id,
             'sender_name' => $this->message->sender?->name,
             'body' => $this->message->body,
+            'attachment_url' => $this->message->attachment_url,
+            'attachment_name' => $this->message->attachment_name,
+            'is_image' => $this->message->is_image,
             'time' => $this->message->created_at->format('H:i'),
         ];
     }

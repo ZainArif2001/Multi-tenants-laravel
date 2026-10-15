@@ -66,6 +66,32 @@ class TeamChatController extends Controller
     }
 
     /**
+     * Create a group conversation with selected members.
+     */
+    public function startGroup(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => 'nullable|string|max:60',
+            'user_ids' => 'required|array|min:1',
+            'user_ids.*' => 'exists:users,id',
+        ]);
+
+        $conversation = DB::transaction(function () use ($request, $data) {
+            $c = Conversation::create(['type' => 'group']);
+            $c->name = $data['name'] ?? null;
+            $c->save();
+            $c->users()->attach(
+                collect($data['user_ids'])->push($request->user()->id)->unique()->all(),
+                ['joined_at' => now()]
+            );
+
+            return $c;
+        });
+
+        return redirect()->route('tenant.messages.index', ['c' => $conversation->id]);
+    }
+
+    /**
      * Poll endpoint — returns messages (optionally after a given id) and
      * marks fetched incoming messages as delivered for the current user.
      */
@@ -110,13 +136,25 @@ class TeamChatController extends Controller
     {
         $this->authorizeMember($request, $conversation);
 
-        $data = $request->validate(['body' => 'required|string|max:10000']);
+        $data = $request->validate([
+            'body' => 'nullable|string|max:10000',
+            'attachment' => 'nullable|file|max:10240',
+        ]);
+        abort_if(empty($data['body']) && ! $request->hasFile('attachment'), 422);
 
         $message = DB::transaction(function () use ($request, $conversation, $data) {
+            $path = $name = null;
+            if ($file = $request->file('attachment')) {
+                $name = $file->getClientOriginalName();
+                $path = $file->store('chat', 'public');
+            }
+
             $message = Message::create([
                 'conversation_id' => $conversation->id,
                 'sender_id' => $request->user()->id,
-                'body' => $data['body'],
+                'body' => $data['body'] ?? '',
+                'attachment_path' => $path,
+                'attachment_name' => $name,
             ]);
 
             $recipients = $conversation->users()
@@ -216,12 +254,19 @@ class TeamChatController extends Controller
     {
         $other = $c->users->firstWhere('id', '!=', $me->id);
         $last = $c->latestMessage;
+        $isGroup = $c->type === 'group';
+        $name = $isGroup
+            ? ($c->name ?: $c->users->where('id', '!=', $me->id)->pluck('name')->take(3)->implode(', '))
+            : ($other?->name ?? 'Conversation #'.$c->id);
 
         return [
             'id' => $c->id,
-            'name' => $other?->name ?? 'Conversation #'.$c->id,
-            'initial' => strtoupper(substr($other?->name ?? 'C', 0, 1)),
-            'last_body' => $last?->body ? \Illuminate\Support\Str::limit($last->body, 40) : null,
+            'other_id' => $isGroup ? null : $other?->id,
+            'is_group' => $isGroup,
+            'name' => $name,
+            'avatar' => $isGroup ? null : $other?->avatar_url,
+            'initial' => $isGroup ? 'G' : strtoupper(substr($other?->name ?? 'C', 0, 1)),
+            'last_body' => $last?->body ? \Illuminate\Support\Str::limit($last->body, 40) : ($last?->attachment_name ? '📎 '.$last->attachment_name : null),
             'last_at' => $last?->created_at?->toIso8601String(),
             'last_time' => $last?->created_at?->format('H:i'),
             'unread' => $c->unreadCountFor($me),
@@ -235,6 +280,9 @@ class TeamChatController extends Controller
             'sender_id' => $m->sender_id,
             'sender_name' => $m->sender->name ?? null,
             'body' => $m->body,
+            'attachment_url' => $m->attachment_url,
+            'attachment_name' => $m->attachment_name,
+            'is_image' => $m->is_image,
             'time' => $m->created_at->format('H:i'),
             'mine' => $m->sender_id === $me->id,
             'status' => $m->statusFor($me),
