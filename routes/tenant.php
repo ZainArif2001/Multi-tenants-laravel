@@ -10,6 +10,7 @@ use App\Http\Controllers\App\EmployeeController;
 use App\Http\Controllers\App\JobRoleController;
 use App\Http\Controllers\App\ManagerController;
 use App\Http\Controllers\App\SiteSettingsController;
+use App\Http\Controllers\App\TeamChatController;
 use App\Http\Controllers\App\PostController;
 use App\Http\Controllers\App\ProfileController;
 use App\Http\Controllers\App\SiteController;
@@ -92,6 +93,17 @@ Route::middleware([
         Route::get('/chats', [ChatController::class, 'index'])
             ->name('chats.index')
             ->middleware(['module:chat', 'access:chat', 'permission:chats.view']);
+
+        // Team Chat — WhatsApp-style staff messaging (module: messaging)
+        Route::middleware(['module:messaging', 'access:messaging'])->group(function () {
+            Route::get('messages', [TeamChatController::class, 'index'])->name('messages.index');
+            Route::post('messages/start', [TeamChatController::class, 'start'])->name('messages.start');
+            Route::get('messages/conversations', [TeamChatController::class, 'conversations'])->name('messages.conversations');
+            Route::get('messages/{conversation}/feed', [TeamChatController::class, 'messages'])->name('messages.feed');
+            Route::post('messages/{conversation}/send', [TeamChatController::class, 'send'])->name('messages.send');
+            Route::post('messages/{message}/delivered', [TeamChatController::class, 'delivered'])->name('messages.delivered');
+            Route::post('messages/{conversation}/read', [TeamChatController::class, 'read'])->name('messages.read');
+        });
 
         // Users — admin only
         Route::resource('users', UserController::class)

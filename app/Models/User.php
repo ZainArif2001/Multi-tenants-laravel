@@ -66,7 +66,10 @@ class User extends Authenticatable
         $modules = $this->allowed_modules;
 
         if ($modules === null) {
+            // Legacy users — messaging stays on for everyone; the rest
+            // is derived from their role.
             return match (true) {
+                $module === 'messaging' => true,
                 $this->hasRole('writer') => in_array($module, ['posts', 'projects']),
                 $this->hasRole('hr') => in_array($module, ['employees', 'projects', 'chat']),
                 $this->hasRole('member') => in_array($module, ['projects', 'chat']),
@@ -75,6 +78,11 @@ class User extends Authenticatable
         }
 
         return in_array($module, $modules);
+    }
+
+    public function conversations(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Conversation::class)->withPivot('joined_at');
     }
 
     public function posts()

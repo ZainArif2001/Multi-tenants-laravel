@@ -11,6 +11,15 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
+        <!-- Reverb websocket config — read before app.js boots Echo -->
+        <script>
+            window.__reverb = {
+                key: @json(config('broadcasting.connections.reverb.key')),
+                port: {{ config('broadcasting.connections.reverb.options.port') ?? 6001 }},
+                scheme: @json(config('broadcasting.connections.reverb.options.scheme') ?? 'http'),
+            };
+        </script>
+
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
@@ -91,6 +100,17 @@
                                 Tasks
                             </a>
                         @endcan
+                    @endif
+
+                    @if (tenant()->hasModule('messaging') && auth()->user()->hasAccessTo('messaging'))
+                        @php($unreadMsgs = \App\Models\MessageReceipt::where('user_id', auth()->id())->whereNull('read_at')->count())
+                        <a href="{{ route('tenant.messages.index') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.messages.*') ? $navActive : $navIdle }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V10a2 2 0 012-2h2m8-4v4l-4-3h8a2 2 0 012 2z"/></svg>
+                            Messages
+                            @if ($unreadMsgs > 0)
+                                <span class="ml-auto bg-indigo-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{{ $unreadMsgs }}</span>
+                            @endif
+                        </a>
                     @endif
 
                     @if (tenant()->hasModule('chat') && auth()->user()->hasAccessTo('chat'))

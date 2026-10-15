@@ -20,6 +20,7 @@ class Tenant extends BaseTenant implements TenantWithDatabase
         'employees' => 'Employees',
         'projects' => 'Projects & Tasks',
         'chat' => 'AI Chatbot',
+        'messaging' => 'Team Chat',
     ];
 
     public static function getCustomColumns(): array
