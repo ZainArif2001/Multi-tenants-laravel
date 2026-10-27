@@ -40,4 +40,13 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-2.0-flash'),
     ],
 
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'prices' => [ // map plans → Stripe price IDs
+            'business' => env('STRIPE_PRICE_BUSINESS'),
+            'agency' => env('STRIPE_PRICE_AGENCY'),
+        ],
+    ],
+
 ];

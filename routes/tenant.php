@@ -41,6 +41,7 @@ Route::middleware([
     'web',
     InitializeTenancyByDomain::class,
     PreventAccessFromCentralDomains::class,
+    \App\Http\Middleware\CheckTenantSuspended::class,
 ])->name('tenant.')->group(function () {
     // Public website — no auth; pages are gated by the tenant's enabled modules
     Route::get('/', [SiteController::class, 'home'])->name('home');
@@ -65,6 +66,10 @@ Route::middleware([
     })->where('path', '.*')->name('media');
 
     // Public AI chatbot — rate limited, only when tenant has the chat module
+    Route::post('/chat/handoff', [ChatController::class, 'handoff'])
+        ->name('chat.handoff')->middleware('throttle:10,1');
+    Route::get('/chat/feed', [ChatController::class, 'feed'])
+        ->name('chat.feed')->middleware('throttle:30,1');
     Route::post('/chat', [ChatController::class, 'send'])
         ->name('chat.send')
         ->middleware(['module:chat', 'throttle:10,1']);
@@ -77,13 +82,41 @@ Route::middleware([
             'subject' => 'nullable|string|max:150',
             'message' => 'required|string|max:5000',
         ]);
-        \App\Models\ContactMessage::create($data);
+        $contact = \App\Models\ContactMessage::create($data);
+        \App\Models\Webhook::dispatch('contact.received', $contact->only('name', 'email', 'subject', 'message'));
+        foreach (\App\Models\User::role('admin')->pluck('id') as $adminId) {
+            \App\Models\UserNotification::notify($adminId, 'contact', 'New contact form submission',
+                "{$contact->name}: {$contact->subject}", route('tenant.inbox'));
+        }
 
         return back()->with('contact_sent', true);
     })->name('contact.send')->middleware('throttle:5,1');
 
+    // Impersonation — super admin's one-time token logs in the first tenant admin
+    Route::get('/impersonate/{token}', function (string $token) {
+        abort_unless(tenant()->impersonation_token && hash_equals(tenant()->impersonation_token, $token), 403);
+        tenant()->impersonation_token = null;
+        tenant()->save();
+
+        \Illuminate\Support\Facades\Auth::login(
+            \App\Models\User::role('admin')->first() ?? abort(404)
+        );
+
+        return redirect()->route('tenant.dashboard')
+            ->with('success', 'You are logged in via impersonation (support mode).');
+    })->name('impersonate');
+
+    // Two-factor challenge — user is logged out pending OTP, so these sit
+    // OUTSIDE the auth group (session pending_2fa_user_id guards access).
+    Route::get('/two-factor', [\App\Http\Controllers\App\TwoFactorController::class, 'challenge'])->name('2fa.challenge');
+    Route::post('/two-factor', [\App\Http\Controllers\App\TwoFactorController::class, 'verify'])->name('2fa.verify');
+
     Route::middleware('auth')->group(function () {
         Route::get('/dashboard', function () {
+            if (! tenant()->onboarded && auth()->user()->hasRole('admin')) {
+                return redirect()->route('tenant.onboarding');
+            }
+
             return view('app.dashboard', [
                 'usersCount' => \App\Models\User::count(),
                 'postsCount' => \App\Models\Post::count(),
@@ -95,17 +128,34 @@ Route::middleware([
                 'chatsCount' => \App\Models\ChatMessage::distinct('session_id')->count('session_id'),
                 'recentPosts' => \App\Models\Post::with('user', 'category')->latest()->take(5)->get(),
                 'recentComments' => \App\Models\Comment::with('post')->latest()->take(5)->get(),
+                'chart' => [
+                    'labels' => collect(range(13, 0))->map(fn ($d) => now()->subDays($d)->format('M j')),
+                    'posts' => collect(range(13, 0))->map(fn ($d) => \App\Models\Post::whereDate('created_at', now()->subDays($d))->count()),
+                    'messages' => collect(range(13, 0))->map(fn ($d) => \App\Models\Message::whereDate('created_at', now()->subDays($d))->count()),
+                ],
             ]);
         })->name('dashboard');
 
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+        Route::post('/profile/tokens', function (\Illuminate\Http\Request $r) {
+            $r->validate(['name' => 'required|string|max:100']);
+            $token = $r->user()->createToken($r->name);
+
+            return back()->with('token', $token->plainTextToken);
+        })->name('tokens.store');
+        Route::delete('/profile/tokens/{tokenId}', function (\Illuminate\Http\Request $r, $tokenId) {
+            $r->user()->tokens()->where('id', $tokenId)->delete();
+
+            return back();
+        })->name('tokens.destroy');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-        // Chat history — staff can browse visitor conversations
-        Route::get('/chats', [ChatController::class, 'index'])
-            ->name('chats.index')
-            ->middleware(['module:chat', 'access:chat', 'permission:chats.view']);
+        // Chat history — staff can browse + reply to visitor conversations
+        Route::middleware(['module:chat', 'access:chat', 'permission:chats.view'])->group(function () {
+            Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
+            Route::post('/chats/reply', [ChatController::class, 'reply'])->name('chats.reply');
+        });
 
         // Global search — across enabled modules
         Route::get('/search', function (\Illuminate\Http\Request $request) {
@@ -132,6 +182,10 @@ Route::middleware([
                 }
             }
 
+            if ($request->wantsJson()) {
+                return response()->json(['results' => $results]);
+            }
+
             return view('app.search', ['q' => $q, 'results' => $results]);
         })->name('search');
 
@@ -142,6 +196,161 @@ Route::middleware([
 
             return view('app.inbox', compact('messages'));
         })->name('inbox')->middleware('role:admin');
+
+        // AI-drafted reply for a contact enquiry
+        Route::get('/inbox/{contactMessage}/suggest', function (\App\Models\ContactMessage $contactMessage) {
+            $draft = app(\App\Services\AiChatService::class)->reply(
+                "Draft a short, professional reply email to this customer enquiry from {$contactMessage->name} ".
+                "(subject: {$contactMessage->subject}): \"{$contactMessage->message}\""
+            );
+
+            return response()->json(['draft' => $draft]);
+        })->name('inbox.suggest')->middleware('role:admin');
+
+        // Email verification — sends a signed link; doesn't block access
+        Route::get('/verify-email', fn () => view('auth.verify-email'))->name('verification.notice');
+        Route::get('/verify-email/{id}/{hash}', function (\Illuminate\Foundation\Auth\EmailVerificationRequest $r) {
+            $r->fulfill();
+
+            return redirect()->route('tenant.dashboard')->with('success', __('Email verified!'));
+        })->middleware(['signed', 'throttle:6,1'])->name('verification.verify');
+        Route::post('/email/verification-notification', function (\Illuminate\Http\Request $r) {
+            if ($r->user()->hasVerifiedEmail()) {
+                return back();
+            }
+            $r->user()->sendEmailVerificationNotification();
+
+            return back()->with('status', 'verification-link-sent');
+        })->middleware('throttle:6,1')->name('verification.send');
+
+        Route::post('/profile/2fa/enable', [\App\Http\Controllers\App\TwoFactorController::class, 'enable'])->name('2fa.enable');
+        Route::post('/profile/2fa/confirm', [\App\Http\Controllers\App\TwoFactorController::class, 'confirm'])->name('2fa.confirm');
+        Route::delete('/profile/2fa', [\App\Http\Controllers\App\TwoFactorController::class, 'disable'])->name('2fa.disable');
+
+        // Onboarding wizard — first-login brand setup for tenant admins
+        Route::get('/onboarding', function () {
+            if (tenant()->onboarded) {
+                return redirect()->route('tenant.dashboard');
+            }
+
+            return view('app.onboarding');
+        })->name('onboarding');
+        Route::post('/onboarding', function (\Illuminate\Http\Request $r) {
+            $data = $r->validate([
+                'tagline' => 'nullable|string|max:255',
+                'primary_color' => 'nullable|string|regex:/^#[0-9a-fA-F]{6}$/',
+            ]);
+            \App\Models\SiteSetting::current()->update(['tagline' => $data['tagline'] ?? null]);
+            $t = tenant();
+            $t->primary_color = $data['primary_color'] ?? null;
+            $t->onboarded = true;
+            $t->save();
+
+            return redirect()->route('tenant.dashboard')->with('success', __('Welcome aboard! Your workspace is ready 🎉'));
+        })->name('onboarding.store')->middleware('role:admin');
+
+        // Notification center — unified feed for all events
+        Route::get('/notifications', function () {
+            return response()->json([
+                'unread' => \App\Models\UserNotification::where('user_id', auth()->id())->whereNull('read_at')->count(),
+                'items' => \App\Models\UserNotification::where('user_id', auth()->id())->latest()->take(15)->get(),
+            ]);
+        })->name('notifications');
+        Route::post('/notifications/read-all', function () {
+            \App\Models\UserNotification::where('user_id', auth()->id())->whereNull('read_at')
+                ->update(['read_at' => now()]);
+
+            return response()->noContent();
+        })->name('notifications.read-all');
+        Route::post('/notifications/{notification}/read', function (\App\Models\UserNotification $notification) {
+            abort_unless($notification->user_id === auth()->id(), 403);
+            $notification->update(['read_at' => now()]);
+
+            return response()->noContent();
+        })->name('notifications.read');
+
+        // Stripe checkout — activates automatically when STRIPE_SECRET is set
+        Route::post('/billing/checkout/{plan}', function (string $plan) {
+            $price = config("services.stripe.prices.{$plan}");
+            abort_unless(config('services.stripe.secret') && $price, 404);
+
+            $res = \Illuminate\Support\Facades\Http::asForm()->withToken(config('services.stripe.secret'))
+                ->post('https://api.stripe.com/v1/checkout/sessions', [
+                    'mode' => 'subscription',
+                    'line_items' => [['price' => $price, 'quantity' => 1]],
+                    'success_url' => route('tenant.billing', ['upgraded' => $plan]),
+                    'cancel_url' => route('tenant.billing'),
+                ]);
+            abort_unless($res->successful(), 500, 'Stripe: ' . $res->body());
+
+            return redirect($res->json('url'));
+        })->name('billing.checkout')->middleware('role:admin');
+
+        // Custom domain request — tenant admin submits, super admin approves
+        Route::post('/billing/domain', function (\Illuminate\Http\Request $r) {
+            $data = $r->validate(['domain' => 'required|string|max:100|regex:/^[a-z0-9.-]+$/']);
+            $t = tenant();
+            $t->pending_domain = $data['domain'];
+            $t->save();
+
+            return back()->with('success', "Domain request submitted — point {$data['domain']} to our servers (CNAME) and it will be activated.");
+        })->name('billing.domain')->middleware('role:admin');
+
+        // Plan & usage — tenant admin's billing view
+        Route::get('/billing', function () {
+            $tenant = tenant();
+            $storagePath = storage_path('app/public');
+            $bytes = 0;
+            foreach (glob($storagePath . '/*', GLOB_ONLYDIR) ?: [] as $d) {
+                foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($d, \FilesystemIterator::SKIP_DOTS)) as $f) {
+                    $bytes += $f->getSize();
+                }
+            }
+
+            return view('app.billing', [
+                'plan' => $tenant->plan ?? 'custom',
+                'planLabel' => \App\Models\Tenant::PLANS[$tenant->plan ?? 'custom']['label'] ?? 'Custom',
+                'modules' => $tenant->modules ?? array_keys(\App\Models\Tenant::MODULES),
+                'stats' => [
+                    'Users' => \App\Models\User::count(),
+                    'Messages' => \App\Models\Message::count(),
+                    'Posts' => \App\Models\Post::count(),
+                    'Employees' => \App\Models\Employee::count(),
+                    'Storage' => number_format($bytes / 1048576, 1) . ' MB',
+                ],
+            ]);
+        })->name('billing')->middleware('role:admin');
+
+        // Leave requests — employee submits, admin approves
+        Route::middleware('module:employees')->group(function () {
+            Route::get('leaves', [\App\Http\Controllers\App\LeaveController::class, 'index'])->name('leaves.index');
+            Route::post('leaves', [\App\Http\Controllers\App\LeaveController::class, 'store'])->name('leaves.store');
+            Route::post('leaves/{leave}/review', [\App\Http\Controllers\App\LeaveController::class, 'review'])->name('leaves.review')
+                ->middleware('role:admin');
+        });
+
+        // Custom roles builder — permission matrix
+        Route::middleware('role:admin')->group(function () {
+            Route::get('roles', [\App\Http\Controllers\App\RoleController::class, 'index'])->name('roles.index');
+            Route::post('roles', [\App\Http\Controllers\App\RoleController::class, 'store'])->name('roles.store');
+            Route::patch('roles/{role}', [\App\Http\Controllers\App\RoleController::class, 'update'])->name('roles.update');
+            Route::delete('roles/{role}', [\App\Http\Controllers\App\RoleController::class, 'destroy'])->name('roles.destroy');
+        });
+
+        // Webhooks — outbound event notifications
+        Route::middleware('role:admin')->group(function () {
+            Route::get('webhooks', [\App\Http\Controllers\App\WebhookController::class, 'index'])->name('webhooks.index');
+            Route::post('webhooks', [\App\Http\Controllers\App\WebhookController::class, 'store'])->name('webhooks.store');
+            Route::post('webhooks/{webhook}/toggle', [\App\Http\Controllers\App\WebhookController::class, 'toggle'])->name('webhooks.toggle');
+            Route::delete('webhooks/{webhook}', [\App\Http\Controllers\App\WebhookController::class, 'destroy'])->name('webhooks.destroy');
+        });
+
+        // AI knowledge base — uploaded docs feed the visitor chatbot
+        Route::middleware(['module:chat', 'access:chat', 'role:admin'])->group(function () {
+            Route::get('knowledge', [\App\Http\Controllers\App\KnowledgeController::class, 'index'])->name('knowledge.index');
+            Route::post('knowledge', [\App\Http\Controllers\App\KnowledgeController::class, 'store'])->name('knowledge.store');
+            Route::delete('knowledge/{doc}', [\App\Http\Controllers\App\KnowledgeController::class, 'destroy'])->name('knowledge.destroy');
+        });
 
         // Activity log — admin audit trail
         Route::get('/activity', function () {
@@ -159,6 +368,13 @@ Route::middleware([
             Route::get('messages/{conversation}/feed', [TeamChatController::class, 'messages'])->name('messages.feed');
             Route::post('messages/{conversation}/send', [TeamChatController::class, 'send'])->name('messages.send')->middleware('throttle:20,1');
             Route::post('messages/{message}/delivered', [TeamChatController::class, 'delivered'])->name('messages.delivered');
+            Route::patch('messages/{message}', [TeamChatController::class, 'update'])->name('messages.update');
+            Route::delete('messages/{message}', [TeamChatController::class, 'destroy'])->name('messages.destroy');
+            Route::post('messages/{message}/react', [TeamChatController::class, 'react'])->name('messages.react');
+            Route::post('messages/{conversation}/preference', [TeamChatController::class, 'preference'])->name('messages.preference');
+            Route::get('messages/{conversation}/search', [TeamChatController::class, 'search'])->name('messages.search');
+            Route::get('messages/{conversation}/export', [TeamChatController::class, 'export'])->name('messages.export');
+            Route::post('messages/{message}/task', [TeamChatController::class, 'makeTask'])->name('messages.task');
             Route::post('messages/{conversation}/read', [TeamChatController::class, 'read'])->name('messages.read');
         });
 

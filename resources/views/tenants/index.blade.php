@@ -40,9 +40,22 @@
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                         {{ $tenant->name }}
+                                        @if ($tenant->suspended)
+                                            <span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600">{{ __('SUSPENDED') }}</span>
+                                        @endif
+                                        <span class="ml-1 text-[10px] text-gray-400">{{ ucfirst($tenant->plan ?? 'custom') }}</span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {{ $tenant->domains->first()->domain ?? $tenant->domain_name }}
+                                        @if ($tenant->pending_domain)
+                                            <div class="mt-1">
+                                                <span class="text-[10px] text-amber-600">⏳ {{ $tenant->pending_domain }}</span>
+                                                <form method="POST" action="{{ route('tenants.approve-domain', $tenant) }}" class="inline ml-1">
+                                                    @csrf
+                                                    <button class="text-[10px] font-bold text-green-600 underline">{{ __('approve') }}</button>
+                                                </form>
+                                            </div>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {{ $tenant->email }}
@@ -51,6 +64,18 @@
                                         <a href="{{ route('tenants.edit', $tenant) }}" class="text-indigo-600 hover:text-indigo-900 mr-4">
                                             {{ __('Edit') }}
                                         </a>
+                                        <form method="POST" action="{{ route('tenants.impersonate', $tenant) }}" class="inline mr-4">
+                                            @csrf
+                                            <button type="submit" class="text-purple-600 hover:text-purple-900" title="{{ __('Login as tenant admin') }}">
+                                                {{ __('Impersonate') }}
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ route('tenants.suspend', $tenant) }}" class="inline mr-4">
+                                            @csrf
+                                            <button type="submit" class="{{ $tenant->suspended ? 'text-green-600 hover:text-green-900' : 'text-amber-600 hover:text-amber-900' }}">
+                                                {{ $tenant->suspended ? __('Resume') : __('Suspend') }}
+                                            </button>
+                                        </form>
                                         <form method="POST" action="{{ route('tenants.destroy', $tenant) }}" class="inline"
                                             onsubmit="return confirm('{{ __('Are you sure you want to delete this tenant?') }}')">
                                             @csrf

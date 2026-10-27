@@ -24,7 +24,27 @@ class CommentController extends Controller
             'body' => 'required|string|max:2000',
         ]);
 
+        // AI moderation — Gemini flags spam/toxic comments (skipped if no key)
+        if (config('services.gemini.api_key')) {
+            $verdict = rescue(fn () => \Illuminate\Support\Facades\Http::timeout(8)->post(
+                sprintf('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s',
+                    config('services.gemini.model', 'gemini-2.0-flash'), config('services.gemini.api_key')),
+                ['contents' => [['role' => 'user', 'parts' => [['text' =>
+                    'Reply with exactly one word — SAFE or SPAM — for this blog comment: ' . $validated['body']
+                ]]]]]
+            )->json('candidates.0.content.parts.0.text'), 'SAFE');
+
+            if (str_contains(strtoupper((string) $verdict), 'SPAM')) {
+                return back()->with('success', 'Comment submitted — it will appear after approval.');
+            }
+        }
+
         $post->comments()->create($validated);
+
+        foreach (\App\Models\User::role('admin')->pluck('id') as $adminId) {
+            \App\Models\UserNotification::notify($adminId, 'comment', 'New comment awaiting approval',
+                \Illuminate\Support\Str::limit($validated['body'], 60), route('tenant.comments.index'));
+        }
 
         return back()->with('success', 'Comment submitted — it will appear after approval.');
     }

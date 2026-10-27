@@ -20,6 +20,9 @@
                     <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> Online — replies instantly
                 </div>
             </div>
+            <button @click="requestHuman()" x-show="! live" title="{{ __('Talk to a human') }}"
+                    class="text-white/80 hover:text-white text-xs bg-white/10 rounded-full px-2.5 py-1">🙋</button>
+            <span x-show="live" class="text-[10px] bg-green-500/90 text-white rounded-full px-2 py-0.5 font-bold">{{ __('LIVE AGENT') }}</span>
             <button @click="open = false" class="text-white/80 hover:text-white">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
@@ -31,9 +34,13 @@
                 <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
                     <div :class="msg.role === 'user'
                             ? 'bg-indigo-600 text-white rounded-2xl rounded-br-sm'
-                            : 'bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-bl-sm shadow-sm'"
-                         class="max-w-[80%] px-4 py-2.5 text-sm leading-relaxed whitespace-pre-line"
-                         x-text="msg.text"></div>
+                            : (msg.role === 'staff'
+                                ? 'bg-green-50 text-gray-800 border border-green-200 rounded-2xl rounded-bl-sm shadow-sm'
+                                : 'bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-bl-sm shadow-sm')"
+                         class="max-w-[80%] px-4 py-2.5 text-sm leading-relaxed whitespace-pre-line">
+                        <span x-show="msg.role === 'staff'" class="block text-[9px] font-bold text-green-600 uppercase mb-0.5">{{ __('Agent') }}</span>
+                        <span x-text="msg.text"></span>
+                    </div>
                 </div>
             </template>
 
@@ -83,6 +90,47 @@
             loading: false,
             sessionId: localStorage.getItem('chat_session') || null,
             messages: [],
+            live: localStorage.getItem('chat_live') === '1',
+            livePoll: null,
+            seenIds: 0,
+
+            async requestHuman() {
+                if (! this.sessionId) {
+                    this.messages.push({ role: 'assistant', text: 'Please send a message first so I can connect you.' });
+                    return;
+                }
+                await fetch('{{ route('tenant.chat.handoff') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ session_id: this.sessionId }),
+                });
+                this.goLive();
+            },
+
+            goLive() {
+                this.live = true;
+                localStorage.setItem('chat_live', '1');
+                this.messages.push({ role: 'assistant', text: 'Connecting you to a team member — they\'ll reply here shortly. 💬' });
+                this.livePoll = setInterval(() => this.pollStaff(), 8000);
+            },
+
+            async pollStaff() {
+                if (! this.sessionId) return;
+                try {
+                    const res = await fetch(`{{ route('tenant.chat.feed') }}?session_id=${this.sessionId}`);
+                    const data = await res.json();
+                    const staff = (data.messages || []).filter(m => m.role === 'staff');
+                    const known = this.messages.filter(m => m.role === 'staff').length;
+                    if (staff.length > known) {
+                        staff.slice(known).forEach(m => this.messages.push({ role: 'staff', text: m.message }));
+                        this.scrollDown();
+                    }
+                } catch (e) {}
+            },
 
             toggle() {
                 this.open = ! this.open;

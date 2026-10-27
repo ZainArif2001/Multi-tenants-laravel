@@ -55,6 +55,48 @@ class TenantController extends Controller
     }
 
     /**
+     * Suspend / resume a tenant — suspended tenants get a 503 on their domain.
+     */
+    public function suspend(Tenant $tenant)
+    {
+        $tenant->suspended = ! $tenant->suspended;
+        $tenant->save();
+
+        return back()->with('success', $tenant->suspended ? 'Tenant suspended.' : 'Tenant resumed.');
+    }
+
+    /**
+     * Approve a tenant's pending custom domain → activates it.
+     */
+    public function approveDomain(Tenant $tenant)
+    {
+        abort_unless($tenant->pending_domain, 404);
+        $tenant->domains()->firstOrCreate(
+            ['domain' => $tenant->pending_domain],
+            ['verified_at' => now()]
+        );
+        $tenant->pending_domain = null;
+        $tenant->save();
+
+        return back()->with('success', 'Domain activated.');
+    }
+
+    /**
+     * Impersonate a tenant admin — generates a one-time token, redirects
+     * into the tenant domain where it's consumed for login.
+     */
+    public function impersonate(Tenant $tenant)
+    {
+        $token = str()->random(40);
+        $tenant->impersonation_token = $token;
+        $tenant->save();
+
+        $domain = $tenant->domains->first()->domain;
+
+        return redirect("http://{$domain}/impersonate/{$token}");
+    }
+
+    /**
      * Display the specified resource.
      */
     public function show(Tenant $tenant)

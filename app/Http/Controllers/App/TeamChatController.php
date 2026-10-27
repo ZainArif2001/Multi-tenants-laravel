@@ -12,7 +12,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use App\Events\ConversationEvent;
 use App\Events\MessageSent;
+use App\Models\MessageReaction;
 
 class TeamChatController extends Controller
 {
@@ -35,7 +37,9 @@ class TeamChatController extends Controller
 
         $openId = (int) $request->query('c', $conversations->first()['id'] ?? 0);
 
-        return view('app.messages.index', compact('conversations', 'contacts', 'openId'));
+        $projects = \App\Models\Project::orderBy('name')->pluck('name', 'id');
+
+        return view('app.messages.index', compact('conversations', 'contacts', 'openId', 'projects'));
     }
 
     /**
@@ -102,7 +106,7 @@ class TeamChatController extends Controller
         $after = (int) $request->query('after_id', 0);
 
         $messages = $conversation->messages()
-            ->with('receipts')
+            ->with('receipts', 'reactions', 'replyTo.sender')
             ->when($after, fn ($q) => $q->where('id', '>', $after))
             ->orderBy('id')
             ->get();
@@ -139,8 +143,17 @@ class TeamChatController extends Controller
         $data = $request->validate([
             'body' => 'nullable|string|max:10000',
             'attachment' => 'nullable|file|max:10240',
+            'reply_to_id' => 'nullable|integer|exists:messages,id',
         ]);
         abort_if(empty($data['body']) && ! $request->hasFile('attachment'), 422);
+
+        // Per-plan message limit — starter plans hit a daily cap
+        $limits = ['starter' => 500, 'business' => 2000, 'agency' => 10000];
+        $cap = $limits[tenant('plan') ?? 'custom'] ?? 10000;
+        abort_unless(
+            Message::where('sender_id', $request->user()->id)->whereDate('created_at', today())->count() < $cap,
+            429, 'Daily message limit reached for your plan.'
+        );
 
         $message = DB::transaction(function () use ($request, $conversation, $data) {
             $path = $name = null;
@@ -155,6 +168,7 @@ class TeamChatController extends Controller
                 'body' => $data['body'] ?? '',
                 'attachment_path' => $path,
                 'attachment_name' => $name,
+                'reply_to_id' => $data['reply_to_id'] ?? null,
             ]);
 
             $recipients = $conversation->users()
@@ -170,19 +184,131 @@ class TeamChatController extends Controller
 
             $conversation->touch(); // bump for list ordering
 
-            return $message->load('receipts', 'sender');
+            return $message->load('receipts', 'sender', 'reactions', 'replyTo.sender');
         });
 
         // Push to every recipient's personal channel via Reverb
         foreach ($message->conversation->users as $recipient) {
             if ($recipient->id !== $request->user()->id) {
+                \App\Models\UserNotification::notify($recipient->id, 'message',
+                    "New message from {$request->user()->name}",
+                    \Illuminate\Support\Str::limit($data['body'] ?? '📎 file', 60),
+                    route('tenant.messages.index', ['c' => $message->conversation_id]));
                 MessageSent::dispatch($message, $recipient->id);
             }
+        }
+
+        // "@ai <question>" → assistant replies in-thread, tenant-scoped context
+        if (str_starts_with(trim($data['body'] ?? ''), '@ai ')) {
+            $this->dispatchAiReply($conversation, trim(substr($data['body'], 3)));
         }
 
         return response()->json([
             'message' => $this->messageData($message, $request->user()),
         ], 201);
+    }
+
+    /**
+     * Edit own message → edited_at + broadcast.
+     */
+    public function update(Request $request, Message $message): JsonResponse
+    {
+        $this->authorizeMessageOwner($request, $message);
+        $data = $request->validate(['body' => 'required|string|max:10000']);
+
+        $message->update(['body' => $data['body'], 'edited_at' => now()]);
+        ConversationEvent::dispatch($message->conversation_id, 'updated', [
+            'message_id' => $message->id,
+            'body' => $message->body,
+        ]);
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Soft-delete own message → broadcast removal.
+     */
+    public function destroy(Request $request, Message $message): JsonResponse
+    {
+        $this->authorizeMessageOwner($request, $message);
+        $message->delete();
+        ConversationEvent::dispatch($message->conversation_id, 'deleted', [
+            'message_id' => $message->id,
+        ]);
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Toggle an emoji reaction on a message.
+     */
+    public function react(Request $request, Message $message): JsonResponse
+    {
+        $data = $request->validate(['emoji' => 'required|string|max:10']);
+
+        abort_unless(
+            $message->conversation->users()->where('users.id', $request->user()->id)->exists(),
+            404
+        );
+
+        $existing = MessageReaction::where('message_id', $message->id)
+            ->where('user_id', $request->user()->id)
+            ->where('emoji', $data['emoji'])->first();
+
+        $existing ? $existing->delete() : MessageReaction::create([
+            'message_id' => $message->id,
+            'user_id' => $request->user()->id,
+            'emoji' => $data['emoji'],
+        ]);
+
+        $counts = $message->fresh()->reactions->groupBy('emoji')->map->count();
+        ConversationEvent::dispatch($message->conversation_id, 'reaction', [
+            'message_id' => $message->id,
+            'reactions' => $counts,
+        ]);
+
+        return response()->json(['reactions' => $counts]);
+    }
+
+    /**
+     * Search messages inside one conversation.
+     */
+    public function search(Request $request, Conversation $conversation): JsonResponse
+    {
+        $this->authorizeMember($request, $conversation);
+        $q = trim($request->query('q', ''));
+        abort_if(strlen($q) < 2, 422);
+
+        $hits = $conversation->messages()
+            ->where('body', 'like', "%{$q}%")
+            ->latest('id')->take(20)->get()
+            ->map(fn ($m) => $this->messageData($m, $request->user()));
+
+        return response()->json(['results' => $hits]);
+    }
+
+    /**
+     * Pin / archive a conversation for the current user only.
+     */
+    public function preference(Request $request, Conversation $conversation): JsonResponse
+    {
+        $this->authorizeMember($request, $conversation);
+        $data = $request->validate([
+            'pinned' => 'nullable|boolean',
+            'archived' => 'nullable|boolean',
+        ]);
+
+        $pivot = [];
+        if (array_key_exists('pinned', $data)) {
+            $pivot['pinned_at'] = $data['pinned'] ? now() : null;
+        }
+        if (array_key_exists('archived', $data)) {
+            $pivot['archived_at'] = $data['archived'] ? now() : null;
+        }
+
+        $conversation->users()->updateExistingPivot($request->user()->id, $pivot);
+
+        return response()->json(['status' => 'ok']);
     }
 
     /**
@@ -242,6 +368,99 @@ class TeamChatController extends Controller
         ]);
     }
 
+    /**
+     * Convert a chat message into a project task.
+     */
+    public function makeTask(Request $request, Message $message): JsonResponse
+    {
+        abort_unless(
+            $message->conversation->users()->where('users.id', $request->user()->id)->exists(),
+            404
+        );
+        $data = $request->validate([
+            'title' => 'required|string|max:255',
+            'project_id' => 'required|exists:projects,id',
+        ]);
+
+        $task = \App\Models\Task::create([
+            'project_id' => $data['project_id'],
+            'assigned_to' => $request->user()->id,
+            'title' => $data['title'],
+            'description' => "From chat: " . \Illuminate\Support\Str::limit($message->body, 200),
+            'status' => 'todo',
+        ]);
+
+        return response()->json(['task_id' => $task->id], 201);
+    }
+
+    /**
+     * Export a conversation as CSV.
+     */
+    public function export(Request $request, Conversation $conversation)
+    {
+        $this->authorizeMember($request, $conversation);
+
+        $rows = $conversation->messages()->with('sender')->oldest()->get()
+            ->map(fn ($m) => sprintf(
+                '"%s","%s","%s","%s"',
+                $m->created_at->toIso8601String(),
+                addslashes($m->sender->name ?? '?'),
+                $m->is_ai ? 'AI' : '',
+                addslashes(str_replace('"', '""', $m->body . ($m->attachment_name ? " [file:{$m->attachment_name}]" : '')))
+            ))->implode("\n");
+
+        return response("time,sender,ai,message\n{$rows}", 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=chat-{$conversation->id}.csv",
+        ]);
+    }
+
+    /**
+     * The AI assistant replies in-thread using this tenant's own data only.
+     */
+    protected function dispatchAiReply(Conversation $conversation, string $question): void
+    {
+        try {
+            $bot = User::firstOrCreate(
+                ['email' => 'assistant@ai.local'],
+                ['name' => 'AI Assistant', 'password' => bcrypt(str()->random(24)), 'allowed_modules' => ['messaging']]
+            );
+            if (! $conversation->users()->where('users.id', $bot->id)->exists()) {
+                $conversation->users()->attach($bot->id, ['joined_at' => now()]);
+            }
+
+            $answer = app(\App\Services\AiChatService::class)->reply($question);
+
+            $reply = DB::transaction(function () use ($conversation, $bot, $answer, $question) {
+                $m = Message::create([
+                    'conversation_id' => $conversation->id,
+                    'sender_id' => $bot->id,
+                    'body' => $answer,
+                    'is_ai' => true,
+                ]);
+                foreach ($conversation->users()->where('users.id', '!=', $bot->id)->pluck('users.id') as $uid) {
+                    MessageReceipt::create(['message_id' => $m->id, 'user_id' => $uid]);
+                }
+                $conversation->touch();
+
+                return $m->load('sender');
+            });
+
+            foreach ($conversation->users as $member) {
+                if ($member->id !== $bot->id) {
+                    MessageSent::dispatch($reply, $member->id);
+                }
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('AI reply failed: ' . $e->getMessage());
+        }
+    }
+
+    protected function authorizeMessageOwner(Request $request, Message $message): void
+    {
+        abort_unless($message->sender_id === $request->user()->id, 403);
+    }
+
     protected function authorizeMember(Request $request, Conversation $conversation): void
     {
         abort_unless(
@@ -270,6 +489,8 @@ class TeamChatController extends Controller
             'last_at' => $last?->created_at?->toIso8601String(),
             'last_time' => $last?->created_at?->format('H:i'),
             'unread' => $c->unreadCountFor($me),
+            'pinned' => (bool) $c->users->firstWhere('id', $me->id)?->pivot?->pinned_at,
+            'archived' => (bool) $c->users->firstWhere('id', $me->id)?->pivot?->archived_at,
         ];
     }
 
@@ -280,8 +501,17 @@ class TeamChatController extends Controller
             'sender_id' => $m->sender_id,
             'sender_name' => $m->sender->name ?? null,
             'body' => $m->body,
+            'edited' => $m->edited_at !== null,
+            'is_ai' => (bool) $m->is_ai,
+            'reply_to' => $m->reply_to_id ? [
+                'id' => $m->reply_to_id,
+                'body' => \Illuminate\Support\Str::limit($m->replyTo->body ?: ($m->replyTo->attachment_name ? '📎 file' : ''), 60),
+                'sender_name' => $m->replyTo->sender?->name,
+            ] : null,
+            'reactions' => $m->reactions->groupBy('emoji')->map->count(),
             'attachment_url' => $m->attachment_url,
             'attachment_name' => $m->attachment_name,
+            'is_audio' => $m->attachment_name && preg_match('/\.(webm|mp3|ogg|m4a|wav)$/i', $m->attachment_name),
             'is_image' => $m->is_image,
             'time' => $m->created_at->format('H:i'),
             'mine' => $m->sender_id === $me->id,

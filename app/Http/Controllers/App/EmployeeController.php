@@ -33,6 +33,7 @@ class EmployeeController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $employee = Employee::create($this->validated($request));
+        \App\Models\Webhook::dispatch('employee.created', $employee->only('first_name', 'last_name', 'email', 'job_title'));
         $this->syncProjects($employee, $request->input('projects', []));
 
         return redirect()->route('tenant.employees.index')->with('success', 'Employee created successfully.');
@@ -81,6 +82,27 @@ class EmployeeController extends Controller
 
         $rows = Excel::toArray(null, $request->file('file'))[0] ?? [];
         $headers = array_map(fn ($h) => Str::of($h)->lower()->snake()->toString(), $rows[0] ?? []);
+
+        // Fuzzy header aliases — accept common variants of each column
+        $aliases = [
+            'first_name' => ['first_name', 'firstname', 'first', 'fname', 'name', 'given_name'],
+            'last_name' => ['last_name', 'lastname', 'last', 'lname', 'surname', 'family_name'],
+            'email' => ['email', 'e_mail', 'email_address', 'mail'],
+            'phone' => ['phone', 'phone_number', 'mobile', 'contact', 'tel', 'telephone'],
+            'job_title' => ['job_title', 'jobtitle', 'title', 'position', 'designation'],
+            'salary' => ['salary', 'pay', 'wage', 'compensation', 'ctc'],
+            'hire_date' => ['hire_date', 'hiredate', 'joining_date', 'date_joined', 'joined', 'start_date'],
+            'department' => ['department', 'dept', 'team', 'division'],
+            'role' => ['role', 'job_role', 'jobrole', 'level'],
+            'manager' => ['manager', 'manager_name', 'reports_to', 'supervisor', 'boss'],
+        ];
+        $headers = array_map(function ($h) use ($aliases) {
+            foreach ($aliases as $canonical => $names) {
+                if (in_array($h, $names)) return $canonical;
+            }
+
+            return $h;
+        }, $headers);
 
         $created = 0;
         $skipped = 0;

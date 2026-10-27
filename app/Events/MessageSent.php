@@ -43,6 +43,7 @@ class MessageSent implements ShouldBroadcastNow
             'attachment_url' => $this->message->attachment_url,
             'attachment_name' => $this->message->attachment_name,
             'is_image' => $this->message->is_image,
+            'is_ai' => (bool) $this->message->is_ai,
             'time' => $this->message->created_at->format('H:i'),
         ];
     }

@@ -11,7 +11,17 @@ class Message extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['conversation_id', 'sender_id', 'body', 'edited_at', 'attachment_path', 'attachment_name'];
+    protected $fillable = ['conversation_id', 'sender_id', 'body', 'edited_at', 'attachment_path', 'attachment_name', 'reply_to_id', 'is_ai'];
+
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(Message::class, 'reply_to_id')->withDefault();
+    }
+
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(MessageReaction::class);
+    }
 
     public function getAttachmentUrlAttribute(): ?string
     {

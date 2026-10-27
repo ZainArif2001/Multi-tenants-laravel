@@ -27,8 +27,12 @@
                 <img src="{{ $post->image_url }}" class="mt-8 w-full rounded-2xl object-cover max-h-96" alt="">
             @endif
 
-            <div class="mt-8 text-gray-700 leading-relaxed whitespace-pre-line text-[17px]">
-                {{ $post->body }}
+            <div class="mt-8 text-gray-700 leading-relaxed text-[17px] prose max-w-none">
+                @if (str_starts_with(trim($post->body ?? ''), '<'))
+                    {!! $post->body !!}
+                @else
+                    <div class="whitespace-pre-line">{{ $post->body }}</div>
+                @endif
             </div>
 
             @if ($post->tags->isNotEmpty())

@@ -17,7 +17,24 @@
                         <div class="text-xs text-gray-400 whitespace-nowrap">{{ $msg->created_at->diffForHumans() }}</div>
                     </div>
                     <p class="text-sm text-gray-600 mt-3 whitespace-pre-wrap">{{ $msg->message }}</p>
-                    <a href="mailto:{{ $msg->email }}" class="inline-block mt-3 text-xs font-medium text-indigo-600 hover:text-indigo-800">Reply via email →</a>
+                    <div class="flex items-center gap-4 mt-3">
+                        <a href="mailto:{{ $msg->email }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Reply via email →</a>
+                        <button x-data="{ draft: null, loading: false }"
+                                @click="loading = true; const r = await fetch('{{ route('tenant.inbox.suggest', $msg) }}'); draft = (await r.json()).draft; loading = false"
+                                class="text-xs font-medium text-purple-600 hover:text-purple-800">
+                            <span x-show="! loading">✨ {{ __('Suggest reply') }}</span>
+                            <span x-show="loading">{{ __('Drafting...') }}</span>
+                            <template x-if="draft">
+                                <div @click.stop class="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg text-left">
+                                    <div class="flex justify-between items-start">
+                                        <span class="text-[10px] font-bold text-purple-500 uppercase">{{ __('AI draft') }}</span>
+                                        <button @click="navigator.clipboard.writeText(draft); draft = null" class="text-[10px] text-purple-600 underline">{{ __('copy') }}</button>
+                                    </div>
+                                    <p class="text-xs text-gray-700 mt-1 whitespace-pre-wrap" x-text="draft"></p>
+                                </div>
+                            </template>
+                        </button>
+                    </div>
                 </div>
             @empty
                 <div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-400">

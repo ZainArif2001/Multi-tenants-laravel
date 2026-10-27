@@ -1,3 +1,33 @@
+<script src="https://unpkg.com/@tiptap/core@2.11.5/dist/index.umd.min.js"></script>
+<script src="https://unpkg.com/@tiptap/starter-kit@2.11.5/dist/index.umd.min.js"></script>
+<script src="https://unpkg.com/@tiptap/extension-link@2.11.5/dist/index.umd.min.js"></script>
+<script>
+    function richEditor(initialHtml) {
+        return {
+            editor: null,
+            html: initialHtml,
+            init() {
+                this.editor = new window.TiptapCore.Editor({
+                    element: this.$refs.editor,
+                    extensions: [
+                        window.TiptapStarterKit.StarterKit,
+                        window.TiptapExtensionLink.Link.configure({ openOnClick: false }),
+                    ],
+                    content: initialHtml,
+                    onUpdate: ({ editor }) => { this.html = editor.getHTML(); },
+                });
+            },
+            chain() { return this.editor.chain().focus(); },
+            cmd(name, ...args) { this.editor.chain().focus()[name](...args).run(); },
+            isActive(name, attrs) { return this.editor?.isActive(name, attrs); },
+            addLink() {
+                const url = prompt('{{ __('Link URL') }}', 'https://');
+                if (url) this.chain().setLink({ href: url }).run();
+            },
+        };
+    }
+</script>
+
 <div class="grid lg:grid-cols-3 gap-6">
     <!-- Main column -->
     <div class="lg:col-span-2 bg-white shadow-sm sm:rounded-lg p-6 space-y-4">
@@ -24,8 +54,31 @@
 
         <div>
             <x-input-label for="body" :value="__('Content')" />
-            <textarea id="body" name="body" rows="14"
-                class="block mt-1 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm font-mono text-sm">{{ old('body', $post?->body) }}</textarea>
+            {{-- TipTap rich text editor — saves HTML into the hidden #body field --}}
+            <div x-data="richEditor(@js(old('body', $post?->body ?? '')))" class="border border-gray-300 rounded-lg overflow-hidden">
+                <div class="flex flex-wrap gap-1 bg-gray-50 border-b border-gray-200 px-2 py-1.5">
+                    <button type="button" @click="cmd('toggleBold')" :class="isActive('bold') ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500'"
+                            class="px-2 py-1 rounded text-xs font-bold hover:bg-gray-200">B</button>
+                    <button type="button" @click="cmd('toggleItalic')" :class="isActive('italic') ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500'"
+                            class="px-2 py-1 rounded text-xs italic hover:bg-gray-200">I</button>
+                    <button type="button" @click="chain().toggleHeading({level:2}).run()" :class="isActive('heading', {level:2}) ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500'"
+                            class="px-2 py-1 rounded text-xs font-semibold hover:bg-gray-200">H2</button>
+                    <button type="button" @click="chain().toggleHeading({level:3}).run()" :class="isActive('heading', {level:3}) ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500'"
+                            class="px-2 py-1 rounded text-xs font-semibold hover:bg-gray-200">H3</button>
+                    <button type="button" @click="cmd('toggleBulletList')" :class="isActive('bulletList') ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500'"
+                            class="px-2 py-1 rounded text-xs hover:bg-gray-200">• List</button>
+                    <button type="button" @click="cmd('toggleOrderedList')" :class="isActive('orderedList') ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500'"
+                            class="px-2 py-1 rounded text-xs hover:bg-gray-200">1. List</button>
+                    <button type="button" @click="cmd('toggleBlockquote')" :class="isActive('blockquote') ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500'"
+                            class="px-2 py-1 rounded text-xs hover:bg-gray-200">❝ Quote</button>
+                    <button type="button" @click="addLink()" class="px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-200">🔗 Link</button>
+                    <button type="button" @click="cmd('setHorizontalRule')" class="px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-200">―</button>
+                    <button type="button" @click="cmd('undo')" class="px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-200">↩</button>
+                    <button type="button" @click="cmd('redo')" class="px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-200">↪</button>
+                </div>
+                <div x-ref="editor" class="prose max-w-none min-h-[300px] px-4 py-3 text-sm focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[300px]"></div>
+            </div>
+            <input type="hidden" id="body" name="body" :value="html">
             <x-input-error :messages="$errors->get('body')" class="mt-2" />
         </div>
     </div>

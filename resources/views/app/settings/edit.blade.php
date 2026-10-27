@@ -14,6 +14,17 @@
                 <p class="text-sm text-gray-500">{{ __('This branding appears on your public website (hero, footer, social links).') }}</p>
 
                 <div>
+                    <x-input-label for="primary_color" :value="__('Brand color')" />
+                    <div class="mt-1 flex items-center gap-3">
+                        <input type="color" id="primary_color" name="primary_color"
+                               value="{{ old('primary_color', tenant('primary_color') ?? '#4f46e5') }}"
+                               class="w-12 h-9 rounded border border-gray-300 cursor-pointer">
+                        <span class="text-xs text-gray-400">{{ __('Buttons, links and accents on your public site') }}</span>
+                    </div>
+                    <x-input-error :messages="$errors->get('primary_color')" class="mt-2" />
+                </div>
+
+                <div>
                     <x-input-label for="tagline" :value="__('Tagline')" />
                     <x-text-input id="tagline" name="tagline" class="block mt-1 w-full" type="text"
                         :value="old('tagline', $settings->tagline)" placeholder="We build things people love." />

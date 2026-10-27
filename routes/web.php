@@ -18,6 +18,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::resource('tenants', TenantController::class);
+    Route::post('tenants/{tenant}/suspend', [TenantController::class, 'suspend'])->name('tenants.suspend');
+    Route::post('tenants/{tenant}/approve-domain', [TenantController::class, 'approveDomain'])->name('tenants.approve-domain');
+    Route::post('tenants/{tenant}/impersonate', [TenantController::class, 'impersonate'])->name('tenants.impersonate');
 });
 
 require __DIR__.'/auth.php';

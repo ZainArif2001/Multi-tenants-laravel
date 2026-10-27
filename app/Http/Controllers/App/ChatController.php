@@ -42,6 +42,60 @@ class ChatController extends Controller
     }
 
     /**
+     * Visitor asks for a human — flags the session, pings all admins.
+     */
+    public function handoff(Request $request): JsonResponse
+    {
+        $data = $request->validate(['session_id' => 'required|string|max:64']);
+
+        ChatMessage::where('session_id', $data['session_id'])->update(['handoff' => true]);
+        ChatMessage::create([
+            'session_id' => $data['session_id'],
+            'role' => 'assistant',
+            'message' => 'A team member has been notified and will reply here shortly. 💬',
+        ]);
+
+        foreach (\App\Models\User::role('admin')->pluck('id') as $adminId) {
+            \App\Models\UserNotification::notify($adminId, 'contact', 'Visitor asked for a human agent',
+                "Chat session " . substr($data['session_id'], 0, 8) . "…", route('tenant.chats.index', ['session' => $data['session_id']]));
+        }
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Visitor polls for staff replies — returns all messages for the session.
+     */
+    public function feed(Request $request): JsonResponse
+    {
+        $data = $request->validate(['session_id' => 'required|string|max:64']);
+
+        return response()->json([
+            'messages' => ChatMessage::where('session_id', $data['session_id'])
+                ->oldest()->get(['role', 'message', 'created_at']),
+        ]);
+    }
+
+    /**
+     * Staff replies to a live visitor chat from the Chats inbox.
+     */
+    public function reply(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'session_id' => 'required|string|max:64',
+            'message' => 'required|string|max:2000',
+        ]);
+
+        ChatMessage::create([
+            'session_id' => $data['session_id'],
+            'role' => 'staff',
+            'message' => $data['message'],
+        ]);
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    /**
      * Staff view — browse visitor conversations grouped by session.
      */
     public function index(Request $request): View
@@ -50,6 +104,7 @@ class ChatController extends Controller
             ->select('session_id')
             ->selectRaw('COUNT(*) as total')
             ->selectRaw('MAX(created_at) as last_at')
+            ->selectRaw('MAX(handoff) as handoff')
             ->groupBy('session_id')
             ->orderByDesc('last_at')
             ->get();

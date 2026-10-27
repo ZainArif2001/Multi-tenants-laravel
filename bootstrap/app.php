@@ -19,6 +19,16 @@ return Application::configure(basePath: dirname(__DIR__))
                     ->domain($domain)
                     ->group(base_path('routes/web.php'));
             }
+
+            // Tenant API — token-authenticated, tenant-isolated via domain.
+            Route::middleware([
+                'api',
+                \Stancl\Tenancy\Middleware\InitializeTenancyByDomain::class,
+                \Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains::class,
+                \App\Http\Middleware\CheckTenantSuspended::class,
+            ])
+                ->prefix('api')
+                ->group(base_path('routes/api-tenant.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

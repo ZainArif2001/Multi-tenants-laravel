@@ -115,6 +115,42 @@
                     </a>
                 @endif
             </div>
+
+            {{-- Activity chart — posts & messages per day (last 14) --}}
+            <div class="bg-white border border-gray-200 rounded-2xl p-6" x-data="dashboardChart({{ Js::from($chart) }})" x-init="render()">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-gray-900">{{ __('Last 14 days') }}</h3>
+                    <div class="flex items-center gap-4 text-xs text-gray-500">
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-indigo-500 rounded-sm"></span> Posts</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-purple-500 rounded-sm"></span> Messages</span>
+                    </div>
+                </div>
+                <canvas x-ref="canvas" height="80"></canvas>
+            </div>
+
+            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+            <script>
+                function dashboardChart(data) {
+                    return {
+                        render() {
+                            new Chart(this.$refs.canvas, {
+                                type: 'line',
+                                data: {
+                                    labels: data.labels,
+                                    datasets: [
+                                        { label: 'Posts', data: data.posts, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.1)', fill: true, tension: .35, pointRadius: 2 },
+                                        { label: 'Messages', data: data.messages, borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,.08)', fill: true, tension: .35, pointRadius: 2 },
+                                    ],
+                                },
+                                options: {
+                                    plugins: { legend: { display: false } },
+                                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                                },
+                            });
+                        },
+                    };
+                }
+            </script>
         </div>
     </div>
 </x-tenant-app-layout>

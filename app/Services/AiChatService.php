@@ -79,6 +79,11 @@ class AiChatService
             }
         }
 
+        // Uploaded knowledge-base documents
+        foreach (\App\Models\KnowledgeDoc::latest()->take(10)->get() as $doc) {
+            $lines[] = "\nDOCUMENT: {$doc->title}\n" . Str::limit($doc->content, 3000);
+        }
+
         return implode("\n", $lines);
     }
 

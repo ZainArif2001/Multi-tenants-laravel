@@ -29,7 +29,12 @@ class TaskController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        Task::create($this->validated($request));
+        $task = Task::create($this->validated($request));
+
+        if ($task->assigned_to) {
+            \App\Models\UserNotification::notify($task->assigned_to, 'task',
+                'You were assigned a task', $task->title, route('tenant.tasks.index'));
+        }
 
         return redirect()->route('tenant.tasks.index')->with('success', 'Task created successfully.');
     }

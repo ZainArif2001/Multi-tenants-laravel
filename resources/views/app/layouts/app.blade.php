@@ -22,6 +22,21 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+        <style>
+            [x-cloak] { display: none !important; }
+            /* Pragmatic dark mode — blanket overrides on common surfaces */
+            html.dark body { background: #0f172a !important; }
+            html.dark .bg-white { background-color: #1e293b !important; }
+            html.dark .bg-gray-100, html.dark .bg-gray-50, html.dark .bg-\[\#efeae2\], html.dark main { background-color: #0f172a !important; }
+            html.dark .text-gray-900, html.dark .text-gray-800, html.dark .text-gray-700 { color: #e2e8f0 !important; }
+            html.dark .text-gray-600, html.dark .text-gray-500 { color: #94a3b8 !important; }
+            html.dark .text-gray-400 { color: #64748b !important; }
+            html.dark .border-gray-200, html.dark .border-gray-100, html.dark .border-gray-300, html.dark .divide-gray-100 > *, html.dark .divide-gray-200 > * { border-color: #334155 !important; }
+            html.dark .hover\:bg-gray-50:hover, html.dark .hover\:bg-gray-100:hover { background-color: #334155 !important; }
+            html.dark input, html.dark select, html.dark textarea { background-color: #1e293b; color: #e2e8f0; border-color: #334155; }
+            html.dark .shadow { box-shadow: 0 1px 3px rgba(0,0,0,.4) !important; }
+        </style>
     </head>
     <body class="font-sans antialiased bg-gray-100">
         <div x-data="{ sidebarOpen: false }" class="min-h-screen flex">
@@ -80,6 +95,10 @@
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                                 Job Roles
                             </a>
+                            <a href="{{ route('tenant.leaves.index') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.leaves.*') ? $navActive : $navIdle }}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                Leaves
+                            </a>
                             <a href="{{ route('tenant.managers.index') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.managers.*') ? $navActive : $navIdle }}">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                                 Managers
@@ -121,6 +140,25 @@
                         <a href="{{ route('tenant.activity') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.activity') ? $navActive : $navIdle }}">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             Activity
+                        </a>
+                        <a href="{{ route('tenant.billing') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.billing') ? $navActive : $navIdle }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                            Plan & Usage
+                        </a>
+                        <a href="{{ route('tenant.roles.index') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.roles.*') ? $navActive : $navIdle }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            Roles
+                        </a>
+                        <a href="{{ route('tenant.webhooks.index') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.webhooks.*') ? $navActive : $navIdle }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                            Webhooks
+                        </a>
+                    @endif
+
+                    @if (tenant()->hasModule('chat') && auth()->user()->hasAccessTo('chat') && auth()->user()->hasRole('admin'))
+                        <a href="{{ route('tenant.knowledge.index') }}" class="{{ $navItem }} {{ request()->routeIs('tenant.knowledge.*') ? $navActive : $navIdle }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                            AI Knowledge
                         </a>
                     @endif
 
@@ -181,40 +219,70 @@
                         @endisset
 
                         {{-- Notification bell — unread message count, polls every 15s --}}
-                        @if (tenant()->hasModule('messaging') && auth()->user()->hasAccessTo('messaging'))
-                            @php($bellUnread = \App\Models\MessageReceipt::where('user_id', auth()->id())->whereNull('read_at')->count())
-                            <div x-data="{ open: false, unread: {{ $bellUnread }}, convos: [] }"
-                                 x-init="setInterval(async () => {
-                                     try {
-                                         const r = await fetch('{{ route('tenant.messages.conversations') }}');
-                                         const d = await r.json();
-                                         unread = d.unread_total; convos = d.conversations.filter(c => c.unread > 0);
-                                     } catch (e) {}
-                                 }, 15000)" class="relative">
-                                <button @click="open = ! open" class="relative p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-                                    <span x-show="unread > 0" x-text="unread" class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center"></span>
-                                </button>
-                                <div x-show="open" @click.outside="open = false" x-cloak
-                                     class="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
-                                    <div class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase border-b">{{ __('Unread messages') }}</div>
-                                    <template x-if="! convos.length">
-                                        <p class="px-4 py-6 text-sm text-gray-400 text-center">{{ __('All caught up 🎉') }}</p>
-                                    </template>
-                                    <template x-for="c in convos" :key="c.id">
-                                        <a :href="`{{ url('/messages') }}?c=${c.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-100">
-                                            <span class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold" x-text="c.initial"></span>
+                        {{-- Unified notification bell — all app events, polls every 15s --}}
+                        @php($bellUnread = \App\Models\UserNotification::where('user_id', auth()->id())->whereNull('read_at')->count())
+                        <div x-data="{
+                                open: false,
+                                unread: {{ $bellUnread }},
+                                items: [],
+                                async refreshBell() {
+                                    try {
+                                        const r = await fetch('{{ route('tenant.notifications') }}');
+                                        const d = await r.json();
+                                        this.unread = d.unread;
+                                        this.items = d.items;
+                                    } catch (e) {}
+                                },
+                                async markAllRead() {
+                                    this.unread = 0;
+                                    this.items = this.items.map(n => ({ ...n, read_at: new Date().toISOString() }));
+                                    await fetch('{{ route('tenant.notifications.read-all') }}', {
+                                        method: 'POST',
+                                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                                    });
+                                },
+                                icon(t) {
+                                    return { message: '💬', contact: '📩', comment: '💭', task: '✅', employee: '👤', system: '🔔' }[t] || '🔔';
+                                },
+                                rel(ts) {
+                                    const m = Math.floor((Date.now() - new Date(ts)) / 60000);
+                                    return m < 1 ? 'just now' : m < 60 ? m + 'm ago' : Math.floor(m / 60) + 'h ago';
+                                },
+                             }"
+                             x-init="refreshBell(); setInterval(() => refreshBell(), 15000)" class="relative">
+                            <button @click="open = ! open; if (open) markAllRead()" class="relative p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                                <span x-show="unread > 0" x-text="unread" class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center"></span>
+                            </button>
+                            <div x-show="open" @click.outside="open = false" x-cloak
+                                 class="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+                                <div class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase border-b">{{ __('Notifications') }}</div>
+                                <template x-if="! items.length">
+                                    <p class="px-4 py-6 text-sm text-gray-400 text-center">{{ __('All caught up 🎉') }}</p>
+                                </template>
+                                <div class="max-h-80 overflow-y-auto">
+                                    <template x-for="n in items" :key="n.id">
+                                        <a :href="n.url || '#'" class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-100"
+                                           :class="{ 'bg-indigo-50/50': ! n.read_at }">
+                                            <span class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm shrink-0" x-text="icon(n.type)"></span>
                                             <span class="flex-1 min-w-0">
-                                                <span class="block text-sm font-medium text-gray-900 truncate" x-text="c.name"></span>
-                                                <span class="block text-xs text-gray-500 truncate" x-text="c.last_body || ''"></span>
+                                                <span class="block text-sm font-medium text-gray-900" x-text="n.title"></span>
+                                                <span class="block text-xs text-gray-500 truncate" x-text="n.body || ''"></span>
+                                                <span class="block text-[10px] text-gray-400 mt-0.5" x-text="rel(n.created_at)"></span>
                                             </span>
-                                            <span class="bg-indigo-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5" x-text="c.unread"></span>
                                         </a>
                                     </template>
-                                    <a href="{{ route('tenant.messages.index') }}" class="block px-4 py-2.5 text-center text-xs font-medium text-indigo-600 hover:bg-indigo-50">{{ __('View all messages') }}</a>
                                 </div>
                             </div>
-                        @endif
+                        </div>
+
+                        {{-- Dark mode toggle --}}
+                        <button @click="dark = ! dark; localStorage.setItem('dark', dark ? '1' : '0'); document.documentElement.classList.toggle('dark', dark)"
+                                x-data="{ dark: localStorage.getItem('dark') === '1' }" x-init="document.documentElement.classList.toggle('dark', dark)"
+                                class="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition" title="{{ __('Toggle dark mode') }}">
+                            <svg x-show="! dark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                            <svg x-show="dark" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                        </button>
 
                         <x-dropdown align="right" width="48">
                         <x-slot name="trigger">
@@ -226,7 +294,11 @@
                                         {{ Auth::user()->initial }}
                                     </div>
                                 @endif
-                                <div class="hidden sm:block">{{ Auth::user()->name }}</div>
+                                <div class="hidden sm:block">{{ Auth::user()->name }}
+                                    @unless (Auth::user()->hasVerifiedEmail())
+                                        <a href="{{ route('tenant.verification.notice') }}" class="text-amber-500 text-xs" title="{{ __('Email not verified — click to verify') }}">⚠️</a>
+                                    @endunless
+                                </div>
                                 <svg class="ms-1 h-4 w-4 fill-current" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                             </button>
                         </x-slot>
@@ -247,6 +319,56 @@
                 <main class="flex-1">
                     {{ $slot }}
                 </main>
+            </div>
+        </div>
+
+        {{-- Ctrl+K command palette — searches posts/employees/projects, quick nav --}}
+        <div x-data="{
+                open: false,
+                q: '',
+                results: [],
+                selected: 0,
+                async search() {
+                    if (this.q.trim().length < 2) { this.results = []; return; }
+                    const r = await fetch(`{{ route('tenant.search') }}?q=${encodeURIComponent(this.q)}`, { headers: { 'Accept': 'application/json' } });
+                    const d = await r.json();
+                    this.results = d.results || [];
+                    this.selected = 0;
+                },
+                go(url) { window.location.href = url; },
+             }"
+             x-init="window.addEventListener('keydown', e => {
+                 if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); open = ! open; q = ''; results = []; }
+                 if (! open) return;
+                 if (e.key === 'Escape') open = false;
+                 if (e.key === 'ArrowDown') { e.preventDefault(); selected = Math.min(selected + 1, results.length - 1); }
+                 if (e.key === 'ArrowUp') { e.preventDefault(); selected = Math.max(selected - 1, 0); }
+                 if (e.key === 'Enter' && results[selected]) go(results[selected].url);
+             })"
+             @keydown.ctrl.k.window.prevent="open = ! open">
+            <div x-show="open" x-cloak class="fixed inset-0 z-[70] bg-slate-900/50 backdrop-blur-sm flex items-start justify-center pt-[15vh]" @click.self="open = false">
+                <div class="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden" @keydown.escape.window="open = false">
+                    <div class="flex items-center gap-3 px-4 border-b border-gray-200">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <input x-model="q" @input.debounce.200ms="search()" x-ref="palette" x-init="$watch('open', v => v && $nextTick(() => $refs.palette.focus()))"
+                               placeholder="{{ __('Search posts, employees, projects...') }}"
+                               class="w-full py-3.5 text-sm border-0 focus:ring-0 focus:outline-none">
+                        <kbd class="text-[10px] text-gray-400 border border-gray-200 rounded px-1.5 py-0.5">ESC</kbd>
+                    </div>
+                    <div class="max-h-72 overflow-y-auto" x-show="results.length">
+                        <template x-for="(r, i) in results" :key="i">
+                            <button @click="go(r.url)" :class="selected === i ? 'bg-indigo-50' : ''"
+                                    class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-50">
+                                <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 w-20 text-center shrink-0" x-text="r.type"></span>
+                                <span class="text-sm text-gray-800 truncate" x-text="r.title"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <div x-show="q.length >= 2 && ! results.length" class="px-4 py-8 text-sm text-gray-400 text-center">{{ __('No results') }}</div>
+                    <div class="px-4 py-2 bg-gray-50 border-t text-[10px] text-gray-400 flex gap-4">
+                        <span>↑↓ {{ __('navigate') }}</span><span>↵ {{ __('open') }}</span><span>esc {{ __('close') }}</span>
+                    </div>
+                </div>
             </div>
         </div>
 

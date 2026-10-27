@@ -26,6 +26,16 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        // 2FA enabled → hold login, ask for OTP
+        if ($request->user()->google2fa_secret) {
+            $userId = $request->user()->id;
+            Auth::logout();
+            $request->session()->regenerate();
+            $request->session()->put('pending_2fa_user_id', $userId);
+
+            return redirect()->route('tenant.2fa.challenge');
+        }
+
         $request->session()->regenerate();
 
         return redirect()->intended($this->landingUrl($request->user()));

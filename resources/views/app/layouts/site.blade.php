@@ -4,6 +4,16 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <link rel="manifest" href="/manifest.json">
+        <meta name="theme-color" content="{{ tenant('primary_color') ?? '#4f46e5' }}">
+        <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+        @if (tenant('primary_color'))
+            <style>
+                .bg-indigo-600 { background-color: {{ tenant('primary_color') }} !important; }
+                .from-indigo-600 { --tw-gradient-from: {{ tenant('primary_color') }} !important; }
+                .text-indigo-600 { color: {{ tenant('primary_color') }} !important; }
+            </style>
+        @endif
 
         <title>{{ tenant('name') ?? config('app.name', 'Laravel') }}</title>
 
