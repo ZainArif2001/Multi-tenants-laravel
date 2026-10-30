@@ -12,7 +12,7 @@ class ManagerController extends Controller
 {
     public function index(): View
     {
-        $managers = Manager::withCount('employees')->latest()->get();
+        $managers = Manager::withCount('employees')->latest()->paginate(15);
 
         return view('app.managers.index', compact('managers'));
     }

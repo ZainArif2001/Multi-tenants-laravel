@@ -29,6 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
             ])
                 ->prefix('api')
                 ->group(base_path('routes/api-tenant.php'));
+
+            // Public embed API — external sites embed a tenant's chatbot
+            // via /embed/{key}/chat.js; tenant resolved from the embed key.
+            Route::middleware('api')->group(base_path('routes/embed.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
@@ -38,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'module' => \App\Http\Middleware\CheckTenantModule::class,
             'access' => \App\Http\Middleware\CheckUserModuleAccess::class,
+            'track.view' => \App\Http\Middleware\TrackPageView::class,
         ]);
 
         // Guest/auth redirects resolve to the right side based on context.

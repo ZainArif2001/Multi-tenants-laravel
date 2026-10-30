@@ -13,7 +13,7 @@ class KnowledgeController extends Controller
 {
     public function index(): View
     {
-        return view('app.knowledge.index', ['docs' => KnowledgeDoc::latest()->get()]);
+        return view('app.knowledge.index', ['docs' => KnowledgeDoc::latest()->paginate(12)]);
     }
 
     public function store(Request $request): RedirectResponse

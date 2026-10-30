@@ -76,6 +76,7 @@
                     </table>
                 </div>
             </div>
+            {{ $tasks->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

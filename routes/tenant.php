@@ -42,20 +42,23 @@ Route::middleware([
     InitializeTenancyByDomain::class,
     PreventAccessFromCentralDomains::class,
     \App\Http\Middleware\CheckTenantSuspended::class,
+    \App\Http\Middleware\TenantViewOverrides::class,
 ])->name('tenant.')->group(function () {
     // Public website — no auth; pages are gated by the tenant's enabled modules
-    Route::get('/', [SiteController::class, 'home'])->name('home');
+    Route::middleware('track.view')->group(function () {
+        Route::get('/', [SiteController::class, 'home'])->name('home');
 
-    Route::middleware('module:posts')->group(function () {
-        Route::get('/blog', [SiteController::class, 'blog'])->name('blog');
-        Route::get('/blog/{post}', [SiteController::class, 'post'])->name('blog.show');
-        Route::post('/blog/{post}/comment', [CommentController::class, 'store'])->name('blog.comment');
-        Route::get('/categories', [SiteController::class, 'categories'])->name('categories');
-        Route::get('/category/{category}', [SiteController::class, 'category'])->name('category');
-        Route::get('/author/{user}', [SiteController::class, 'author'])->name('author');
+        Route::middleware('module:posts')->group(function () {
+            Route::get('/blog', [SiteController::class, 'blog'])->name('blog');
+            Route::get('/blog/{post}', [SiteController::class, 'post'])->name('blog.show');
+            Route::post('/blog/{post}/comment', [CommentController::class, 'store'])->name('blog.comment');
+            Route::get('/categories', [SiteController::class, 'categories'])->name('categories');
+            Route::get('/category/{category}', [SiteController::class, 'category'])->name('category');
+            Route::get('/author/{user}', [SiteController::class, 'author'])->name('author');
+        });
+
+        Route::get('/team', [SiteController::class, 'team'])->name('team')->middleware('module:employees');
     });
-
-    Route::get('/team', [SiteController::class, 'team'])->name('team')->middleware('module:employees');
 
     // Tenant public storage — uploaded images stream from this tenant's own disk
     Route::get('/media/{path}', function (string $path) {
@@ -72,6 +75,9 @@ Route::middleware([
         ->name('chat.feed')->middleware('throttle:30,1');
     Route::post('/chat', [ChatController::class, 'send'])
         ->name('chat.send')
+        ->middleware(['module:chat', 'throttle:10,1']);
+    Route::post('/chat/stream', [\App\Http\Controllers\App\ChatController::class, 'stream'])
+        ->name('chat.stream')
         ->middleware(['module:chat', 'throttle:10,1']);
 
     // Public contact form → staff inbox
@@ -128,10 +134,19 @@ Route::middleware([
                 'chatsCount' => \App\Models\ChatMessage::distinct('session_id')->count('session_id'),
                 'recentPosts' => \App\Models\Post::with('user', 'category')->latest()->take(5)->get(),
                 'recentComments' => \App\Models\Comment::with('post')->latest()->take(5)->get(),
+                'viewsToday' => \App\Models\PageView::whereDate('created_at', today())->count(),
+                'visitorsToday' => \App\Models\PageView::whereDate('created_at', today())->distinct('visitor_hash')->count('visitor_hash'),
+                'openTickets' => \App\Models\ContactMessage::where('status', '!=', 'closed')->count(),
+                'topPosts' => \App\Models\Post::where('status', 'published')->orderByDesc('views')->take(5)->get(),
+                'topPages' => \App\Models\PageView::where('created_at', '>=', now()->subDays(14))
+                    ->selectRaw('path, count(*) as total')->groupBy('path')
+                    ->orderByDesc('total')->take(5)->get(),
                 'chart' => [
                     'labels' => collect(range(13, 0))->map(fn ($d) => now()->subDays($d)->format('M j')),
                     'posts' => collect(range(13, 0))->map(fn ($d) => \App\Models\Post::whereDate('created_at', now()->subDays($d))->count()),
                     'messages' => collect(range(13, 0))->map(fn ($d) => \App\Models\Message::whereDate('created_at', now()->subDays($d))->count()),
+                    'views' => collect(range(13, 0))->map(fn ($d) => \App\Models\PageView::whereDate('created_at', now()->subDays($d))->count()),
+                    'visitors' => collect(range(13, 0))->map(fn ($d) => \App\Models\PageView::whereDate('created_at', now()->subDays($d))->distinct('visitor_hash')->count('visitor_hash')),
                 ],
             ]);
         })->name('dashboard');
@@ -155,6 +170,8 @@ Route::middleware([
         Route::middleware(['module:chat', 'access:chat', 'permission:chats.view'])->group(function () {
             Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
             Route::post('/chats/reply', [ChatController::class, 'reply'])->name('chats.reply');
+            Route::delete('/chats/{sessionId}', [ChatController::class, 'destroySession'])->name('chats.destroy')
+                ->middleware('role:admin');
         });
 
         // Global search — across enabled modules
@@ -189,13 +206,47 @@ Route::middleware([
             return view('app.search', ['q' => $q, 'results' => $results]);
         })->name('search');
 
-        // Contact inbox — admin reads visitor enquiries
-        Route::get('/inbox', function () {
-            $messages = \App\Models\ContactMessage::latest()->paginate(20);
+        // Contact inbox — admin reads visitor enquiries as tickets
+        Route::get('/inbox', function (\Illuminate\Http\Request $request) {
+            $filter = in_array($request->status, \App\Models\ContactMessage::STATUSES)
+                ? $request->status : null;
+
+            $messages = \App\Models\ContactMessage::with('assignee:id,name')
+                ->when($filter, fn ($q) => $q->where('status', $filter))
+                ->latest()->paginate(20)->withQueryString();
+
             \App\Models\ContactMessage::whereNull('read_at')->update(['read_at' => now()]);
 
-            return view('app.inbox', compact('messages'));
+            return view('app.inbox', [
+                'messages' => $messages,
+                'filter' => $filter,
+                'counts' => \App\Models\ContactMessage::statusCounts(),
+                'agents' => \App\Models\User::orderBy('name')->get(['id', 'name']),
+            ]);
         })->name('inbox')->middleware('role:admin');
+
+        // Delete a ticket — admin only
+        Route::delete('/inbox/{contactMessage}', function (\App\Models\ContactMessage $contactMessage) {
+            $contactMessage->delete();
+
+            return back()->with('success', __('Ticket deleted.'));
+        })->name('inbox.destroy')->middleware('role:admin');
+
+        // Update a ticket — status, priority, assignee
+        Route::patch('/inbox/{contactMessage}', function (\Illuminate\Http\Request $request, \App\Models\ContactMessage $contactMessage) {
+            $data = $request->validate([
+                'status' => 'required|in:new,open,replied,closed',
+                'priority' => 'required|in:low,medium,high',
+                'assigned_to' => 'nullable|exists:users,id',
+            ]);
+
+            $data['resolved_at'] = $data['status'] === 'closed' && ! $contactMessage->resolved_at
+                ? now() : $contactMessage->resolved_at;
+
+            $contactMessage->update($data);
+
+            return back()->with('success', __('Ticket updated.'));
+        })->name('inbox.update')->middleware('role:admin');
 
         // AI-drafted reply for a contact enquiry
         Route::get('/inbox/{contactMessage}/suggest', function (\App\Models\ContactMessage $contactMessage) {
@@ -268,6 +319,17 @@ Route::middleware([
 
             return response()->noContent();
         })->name('notifications.read');
+        Route::delete('/notifications/{notification}', function (\App\Models\UserNotification $notification) {
+            abort_unless($notification->user_id === auth()->id(), 403);
+            $notification->delete();
+
+            return response()->noContent();
+        })->name('notifications.destroy');
+        Route::delete('/notifications', function () {
+            \App\Models\UserNotification::where('user_id', auth()->id())->delete();
+
+            return response()->noContent();
+        })->name('notifications.clear');
 
         // Stripe checkout — activates automatically when STRIPE_SECRET is set
         Route::post('/billing/checkout/{plan}', function (string $plan) {
@@ -285,6 +347,45 @@ Route::middleware([
 
             return redirect($res->json('url'));
         })->name('billing.checkout')->middleware('role:admin');
+
+        // Customization requests — tenant asks super admin for UI changes
+        Route::middleware('role:admin')->group(function () {
+            Route::get('/customizations', function () {
+                $requests = \App\Models\CustomRequest::where('tenant_id', tenant()->id)
+                    ->latest()->paginate(15);
+
+                return view('app.customizations', ['requests' => $requests, 'customCss' => tenant('custom_css')]);
+            })->name('customizations');
+            Route::post('/customizations', function (\Illuminate\Http\Request $r) {
+                $data = $r->validate([
+                    'title' => 'required|string|max:150',
+                    'details' => 'required|string|max:2000',
+                    'module' => 'nullable|string|max:50',
+                ]);
+                \App\Models\CustomRequest::create($data + ['tenant_id' => tenant()->id]);
+
+                // Ping the platform admin — request lands on their central inbox
+                try {
+                    $adminEmail = \App\Models\User::on('mysql')->orderBy('id')->value('email');
+                    if ($adminEmail) {
+                        \Illuminate\Support\Facades\Mail::raw(
+                            "New customization request from " . tenant('name') . ":\n\n{$data['title']}\n\n{$data['details']}",
+                            fn ($m) => $m->to($adminEmail)->subject('🎨 Tenant customization request')
+                        );
+                    }
+                } catch (\Throwable) {}
+
+                return back()->with('success', 'Request sent to the platform admin.');
+            })->name('customizations.store');
+            Route::post('/customizations/css', function (\Illuminate\Http\Request $r) {
+                $data = $r->validate(['custom_css' => 'nullable|string|max:10000']);
+                $t = tenant();
+                $t->custom_css = $data['custom_css'];
+                $t->save();
+
+                return back()->with('success', 'Custom CSS saved.');
+            })->name('customizations.css');
+        });
 
         // Custom domain request — tenant admin submits, super admin approves
         Route::post('/billing/domain', function (\Illuminate\Http\Request $r) {
@@ -325,6 +426,7 @@ Route::middleware([
         Route::middleware('module:employees')->group(function () {
             Route::get('leaves', [\App\Http\Controllers\App\LeaveController::class, 'index'])->name('leaves.index');
             Route::post('leaves', [\App\Http\Controllers\App\LeaveController::class, 'store'])->name('leaves.store');
+            Route::delete('leaves/{leave}', [\App\Http\Controllers\App\LeaveController::class, 'destroy'])->name('leaves.destroy');
             Route::post('leaves/{leave}/review', [\App\Http\Controllers\App\LeaveController::class, 'review'])->name('leaves.review')
                 ->middleware('role:admin');
         });
@@ -387,6 +489,12 @@ Route::middleware([
         Route::middleware('role:admin')->group(function () {
             Route::get('settings', [SiteSettingsController::class, 'edit'])->name('settings.edit');
             Route::put('settings', [SiteSettingsController::class, 'update'])->name('settings.update');
+            Route::post('settings/embed-key', function () {
+                tenant()->embed_key = (string) \Illuminate\Support\Str::uuid();
+                tenant()->save();
+
+                return back()->with('success', 'Embed key regenerated — update the script tag on external sites.');
+            })->name('settings.embed-key');
         });
 
         // Posts — writers create/edit own, admins can publish & manage all

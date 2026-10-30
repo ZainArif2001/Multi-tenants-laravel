@@ -1,15 +1,11 @@
 <x-tenant-site-layout>
-    @if ($settings->tagline || $settings->description)
+    @if ($settings->show_hero)
         <!-- Hero band -->
         <section class="bg-slate-900 py-16 mb-2">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                @if ($settings->tagline)
-                    <h1 class="text-3xl sm:text-4xl font-bold text-white">{{ $settings->tagline }}</h1>
-                @else
-                    <h1 class="text-3xl sm:text-4xl font-bold text-white">{{ tenant('name') }}</h1>
-                @endif
-                @if ($settings->description)
-                    <p class="mt-4 text-slate-300 max-w-2xl mx-auto">{{ $settings->description }}</p>
+                <h1 class="text-3xl sm:text-4xl font-bold text-white">{{ $settings->hero_title ?: $settings->tagline ?: tenant('name') }}</h1>
+                @if ($settings->hero_subtitle ?: $settings->description)
+                    <p class="mt-4 text-slate-300 max-w-2xl mx-auto">{{ $settings->hero_subtitle ?: $settings->description }}</p>
                 @endif
                 <div class="mt-6 flex flex-wrap justify-center gap-3">
                     @if (tenant()->hasModule('posts'))
@@ -25,6 +21,7 @@
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
+        @if ($settings->show_posts)
         @if ($featured)
             <!-- Hero: featured post -->
             <div class="grid lg:grid-cols-3 gap-8 mb-14">
@@ -105,6 +102,7 @@
                 @endforeach
             </div>
         @endif
+        @endif
 
         <!-- Team -->
         @if ($employees->isNotEmpty())
@@ -131,6 +129,7 @@
         @endif
 
         {{-- Contact form → lands in the staff inbox --}}
+        @if ($settings->show_contact)
         <section class="border-t border-gray-100 pt-14">
             <div class="max-w-2xl mx-auto text-center">
                 <h2 class="text-2xl font-bold text-gray-900">{{ __('Get in touch') }}</h2>
@@ -160,5 +159,6 @@
                 @endif
             </div>
         </section>
+        @endif
     </div>
 </x-tenant-site-layout>

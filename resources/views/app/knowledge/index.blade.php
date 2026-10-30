@@ -46,6 +46,7 @@
                     <p class="px-6 py-10 text-center text-gray-400">{{ __('No documents yet — upload one to teach the AI about your business.') }}</p>
                 @endforelse
             </div>
+            {{ $docs->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

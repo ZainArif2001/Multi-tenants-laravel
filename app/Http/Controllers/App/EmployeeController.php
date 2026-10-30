@@ -20,7 +20,7 @@ class EmployeeController extends Controller
     {
         $employees = Employee::with('department', 'jobRole', 'manager')
             ->withCount('projects')
-            ->latest()->get();
+            ->latest()->paginate(15);
 
         return view('app.employees.index', compact('employees'));
     }

@@ -49,6 +49,7 @@
                     <p class="px-6 py-10 text-center text-gray-400">{{ __('No webhooks configured.') }}</p>
                 @endforelse
             </div>
+            {{ $hooks->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

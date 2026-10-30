@@ -14,6 +14,9 @@
                 .text-indigo-600 { color: {{ tenant('primary_color') }} !important; }
             </style>
         @endif
+        @if (tenant('custom_css'))
+            <style>{!! tenant('custom_css') !!}</style>
+        @endif
 
         <title>{{ tenant('name') ?? config('app.name', 'Laravel') }}</title>
 
@@ -25,9 +28,13 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased bg-white">
+        @php($siteSettings = \App\Models\SiteSetting::first())
         <header class="border-b border-gray-200">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-                <a href="{{ route('tenant.home') }}" class="font-bold text-lg text-gray-800">
+                <a href="{{ route('tenant.home') }}" class="font-bold text-lg text-gray-800 flex items-center gap-2.5">
+                    @if ($siteSettings?->logo_url)
+                        <img src="{{ $siteSettings->logo_url }}" class="h-8 w-auto" alt="{{ tenant('name') }}">
+                    @endif
                     {{ tenant('name') }}
                 </a>
 
@@ -65,7 +72,6 @@
             {{ $slot }}
         </main>
 
-        @php($siteSettings = \App\Models\SiteSetting::first())
         <footer class="bg-slate-900 mt-16">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div class="grid md:grid-cols-3 gap-10">
@@ -131,6 +137,9 @@
                 </div>
 
                 <div class="mt-10 pt-6 border-t border-slate-800 text-center text-xs text-slate-500">
+                    @if ($siteSettings?->footer_text)
+                        <p class="mb-1">{{ $siteSettings->footer_text }}</p>
+                    @endif
                     &copy; {{ date('Y') }} {{ tenant('name') }}. {{ __('All rights reserved.') }}
                 </div>
             </div>

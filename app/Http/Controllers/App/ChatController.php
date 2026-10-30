@@ -42,6 +42,55 @@ class ChatController extends Controller
     }
 
     /**
+     * Streaming variant — visitor sees the reply typed out token-by-token.
+     * Emits Server-Sent Events: {token} chunks then a final {done, session_id}.
+     */
+    public function stream(Request $request, AiChatService $ai)
+    {
+        $validated = $request->validate([
+            'message' => 'required|string|max:1000',
+            'session_id' => 'nullable|string|max:64',
+        ]);
+
+        $sessionId = $validated['session_id'] ?: (string) Str::uuid();
+
+        $history = ChatMessage::where('session_id', $sessionId)
+            ->latest()->take(10)->get()->reverse()
+            ->map(fn (ChatMessage $m) => [
+                'role' => $m->role === 'assistant' ? 'model' : 'user',
+                'parts' => [['text' => $m->message]],
+            ])->values()->all();
+
+        ChatMessage::create(['session_id' => $sessionId, 'role' => 'user', 'message' => $validated['message']]);
+
+        return response()->stream(function () use ($ai, $validated, $history, $sessionId) {
+            $full = '';
+
+            try {
+                foreach ($ai->streamReply($validated['message'], $history) as $token) {
+                    $full .= $token;
+                    echo 'data: '.json_encode(['token' => $token])."\n\n";
+                    if (ob_get_level() > 0) {
+                        ob_flush();
+                    }
+                    flush();
+                }
+            } catch (\Throwable $e) {
+                $full = $full ?: "Sorry, I'm having trouble responding right now. Please try again in a moment.";
+                echo 'data: '.json_encode(['token' => $full])."\n\n";
+            }
+
+            ChatMessage::create(['session_id' => $sessionId, 'role' => 'assistant', 'message' => $full]);
+
+            echo 'data: '.json_encode(['done' => true, 'session_id' => $sessionId])."\n\n";
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
+    /**
      * Visitor asks for a human — flags the session, pings all admins.
      */
     public function handoff(Request $request): JsonResponse
@@ -107,7 +156,7 @@ class ChatController extends Controller
             ->selectRaw('MAX(handoff) as handoff')
             ->groupBy('session_id')
             ->orderByDesc('last_at')
-            ->get();
+            ->paginate(15);
 
         $session = $request->query('session');
 
@@ -116,5 +165,15 @@ class ChatController extends Controller
             : collect();
 
         return view('app.chats.index', compact('sessions', 'session', 'messages'));
+    }
+
+    /**
+     * Delete an entire visitor chat session — admin only.
+     */
+    public function destroySession(string $sessionId)
+    {
+        ChatMessage::where('session_id', $sessionId)->delete();
+
+        return redirect()->route('tenant.chats.index')->with('success', 'Conversation deleted.');
     }
 }

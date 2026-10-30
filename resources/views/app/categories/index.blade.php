@@ -78,6 +78,7 @@
                     </tbody>
                 </table>
             </div>
+            {{ $categories->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

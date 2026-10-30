@@ -54,6 +54,15 @@
             </div>
         </div>
 
+        <!-- Suggested questions -->
+        <div x-show="messages.length <= 1 && ! loading" class="border-t border-gray-100 px-3 pt-3 pb-1 bg-white flex flex-wrap gap-1.5">
+            <template x-for="s in suggestions" :key="s">
+                <button @click="quickSend(s)" type="button"
+                        class="text-[11px] px-3 py-1.5 rounded-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition"
+                        x-text="s"></button>
+            </template>
+        </div>
+
         <!-- Input -->
         <div class="border-t border-gray-200 p-3 bg-white">
             <form @submit.prevent="send()" class="flex items-center gap-2">
@@ -93,6 +102,12 @@
             live: localStorage.getItem('chat_live') === '1',
             livePoll: null,
             seenIds: 0,
+            suggestions: {{ Js::from(app(\App\Services\AiChatService::class)->suggestedQuestions()) }},
+
+            quickSend(text) {
+                this.draft = text;
+                this.send();
+            },
 
             async requestHuman() {
                 if (! this.sessionId) {
@@ -153,26 +168,48 @@
                 this.scrollDown();
 
                 try {
-                    const res = await fetch('{{ route('tenant.chat.send') }}', {
+                    const res = await fetch('{{ route('tenant.chat.stream') }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
-                            'Accept': 'application/json',
+                            'Accept': 'text/event-stream',
                         },
                         body: JSON.stringify({ message: text, session_id: this.sessionId }),
                     });
-                    const data = await res.json();
 
-                    if (data.session_id) {
-                        this.sessionId = data.session_id;
-                        localStorage.setItem('chat_session', data.session_id);
+                    // Streamed reply — append tokens into a live bubble as they arrive
+                    this.messages.push({ role: 'assistant', text: '' });
+                    const bubble = this.messages[this.messages.length - 1];
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop();
+
+                        for (const line of lines) {
+                            if (! line.startsWith('data: ')) continue;
+                            const evt = JSON.parse(line.slice(6));
+                            if (evt.token) {
+                                bubble.text += evt.token;
+                                this.scrollDown();
+                            }
+                            if (evt.session_id) {
+                                this.sessionId = evt.session_id;
+                                localStorage.setItem('chat_session', evt.session_id);
+                            }
+                        }
                     }
 
-                    this.messages.push({
-                        role: 'assistant',
-                        text: data.reply ?? 'Sorry, something went wrong. Please try again.'
-                    });
+                    if (! bubble.text) {
+                        bubble.text = 'Sorry, something went wrong. Please try again.';
+                    }
                 } catch (e) {
                     this.messages.push({ role: 'assistant', text: 'Network error — please check your connection and try again.' });
                 }

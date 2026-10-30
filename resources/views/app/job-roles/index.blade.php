@@ -78,6 +78,7 @@
                     </tbody>
                 </table>
             </div>
+            {{ $jobRoles->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

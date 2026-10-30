@@ -88,6 +88,7 @@
                     </table>
                 </div>
             </div>
+            {{ $users->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

@@ -32,7 +32,16 @@ class TenantController extends Controller
         // dd($request->all());
         $validtionData = $request->validate([
             'name' => 'required|string|max:255',
-            'domain_name' => 'required|string|max:255|unique:domains,domain',
+            'domain_name' => [
+                'required', 'string', 'max:255', 'regex:/^[a-z0-9-]+$/',
+                function ($attr, $value, $fail) {
+                    $full = $value . '.' . config('app.domain');
+                    if (\Stancl\Tenancy\Database\Models\Domain::where('domain', $full)->exists()
+                        || \Stancl\Tenancy\Database\Models\Domain::where('domain', $value)->exists()) {
+                        $fail("Domain \"{$full}\" is already taken — pick another.");
+                    }
+                },
+            ],
             'email' => 'required|email|max:255|unique:tenants,email',
             'password' => 'required|string|min:8|confirmed',
             'plan' => ['nullable', \Illuminate\Validation\Rule::in(array_keys(Tenant::PLANS))],
@@ -52,6 +61,23 @@ class TenantController extends Controller
         ]);
 
         return redirect()->route('tenants.index')->with('success', 'Tenant created successfully.');
+    }
+
+    /**
+     * Live domain availability check for the create form.
+     */
+    public function checkDomain(\Illuminate\Http\Request $request)
+    {
+        $name = strtolower(trim($request->query('d', '')));
+        if ($name === '') {
+            return response()->json(['available' => null]);
+        }
+
+        $full = $name . '.' . config('app.domain');
+        $taken = \Stancl\Tenancy\Database\Models\Domain::where('domain', $full)
+            ->orWhere('domain', $name)->exists();
+
+        return response()->json(['available' => ! $taken, 'domain' => $full]);
     }
 
     /**

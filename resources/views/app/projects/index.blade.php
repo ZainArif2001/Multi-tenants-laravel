@@ -61,6 +61,7 @@
                     </table>
                 </div>
             </div>
+            {{ $projects->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

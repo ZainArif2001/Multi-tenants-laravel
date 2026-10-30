@@ -15,6 +15,16 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('tenants.index')" :active="request()->routeIs('tenants.*')">
+                        {{ __('Tenants') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('requests.index')" :active="request()->routeIs('requests.*')">
+                        {{ __('Requests') }}
+                        @php($pending = \App\Models\CustomRequest::where('status', 'pending')->count())
+                        @if ($pending)
+                            <span class="ml-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5">{{ $pending }}</span>
+                        @endif
+                    </x-nav-link>
                 </div>
             </div>
 

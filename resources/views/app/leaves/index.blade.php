@@ -56,6 +56,15 @@
                                 <button class="text-xs font-medium text-red-600 hover:text-red-800">{{ __('Reject') }}</button>
                             </form>
                         @endif
+                        @if ($isAdmin || ($leave->user_id === auth()->id() && $leave->status === 'pending'))
+                            <form method="POST" action="{{ route('tenant.leaves.destroy', $leave) }}"
+                                  onsubmit="return confirm('{{ __('Remove this leave request?') }}')">
+                                @csrf @method('DELETE')
+                                <button class="text-xs font-medium text-red-500 hover:text-red-700">
+                                    {{ $isAdmin ? __('Delete') : __('Cancel') }}
+                                </button>
+                            </form>
+                        @endif
                     </div>
                 @empty
                     <p class="px-6 py-10 text-center text-gray-400">{{ __('No leave requests yet.') }}</p>

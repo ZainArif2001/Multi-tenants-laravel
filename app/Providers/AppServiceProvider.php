@@ -49,8 +49,15 @@ class AppServiceProvider extends ServiceProvider
                         ?? trim(($subject->first_name ?? '') . ' ' . ($subject->last_name ?? ''))
                         ?: "#{$subject->getKey()}";
 
+                    // Actor must exist in THIS database — during tenant seeding
+                    // the authed central admin has no row in the tenant's users
+                    // table, and the FK would blow up the whole job pipeline.
+                    $actorId = auth()->id();
+                    $actorExists = $actorId
+                        && \App\Models\User::where('id', $actorId)->exists();
+
                     \App\Models\ActivityLog::create([
-                        'user_id' => auth()->id(),
+                        'user_id' => $actorExists ? $actorId : null,
                         'action' => $event,
                         'subject_type' => $label,
                         'subject_id' => $subject->getKey(),

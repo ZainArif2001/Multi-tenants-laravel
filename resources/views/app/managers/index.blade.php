@@ -88,6 +88,7 @@
                     </tbody>
                 </table>
             </div>
+            {{ $managers->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

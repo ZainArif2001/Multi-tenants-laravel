@@ -83,6 +83,7 @@
                     </table>
                 </div>
             </div>
+            {{ $posts->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

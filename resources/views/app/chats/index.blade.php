@@ -17,21 +17,34 @@
                         </div>
                         <div class="divide-y divide-gray-100 overflow-y-auto" style="max-height: 480px;">
                             @forelse ($sessions as $s)
-                                <a href="{{ route('tenant.chats.index', ['session' => $s->session_id]) }}"
-                                   class="block px-4 py-3 hover:bg-gray-50 {{ $session === $s->session_id ? 'bg-indigo-50' : '' }}">
-                                    <div class="text-xs font-mono text-gray-500 truncate">
-                                        {{ Str::limit($s->session_id, 20) }}
-                                        @if ($s->handoff)
-                                            <span class="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-bold">🙋 HUMAN</span>
-                                        @endif
-                                    </div>
-                                    <div class="text-xs text-gray-400 mt-1">
-                                        {{ $s->total }} {{ __('messages') }} · {{ \Carbon\Carbon::parse($s->last_at)->diffForHumans() }}
-                                    </div>
-                                </a>
+                                <div class="flex items-center px-4 py-3 hover:bg-gray-50 {{ $session === $s->session_id ? 'bg-indigo-50' : '' }}">
+                                    <a href="{{ route('tenant.chats.index', ['session' => $s->session_id]) }}" class="flex-1 min-w-0">
+                                        <div class="text-xs font-mono text-gray-500 truncate">
+                                            {{ Str::limit($s->session_id, 20) }}
+                                            @if ($s->handoff)
+                                                <span class="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-bold">🙋 HUMAN</span>
+                                            @endif
+                                        </div>
+                                        <div class="text-xs text-gray-400 mt-1">
+                                            {{ $s->total }} {{ __('messages') }} · {{ \Carbon\Carbon::parse($s->last_at)->diffForHumans() }}
+                                        </div>
+                                    </a>
+                                    @if (auth()->user()->hasRole('admin'))
+                                        <form method="POST" action="{{ route('tenant.chats.destroy', $s->session_id) }}"
+                                              onsubmit="return confirm('{{ __('Delete this conversation?') }}')">
+                                            @csrf @method('DELETE')
+                                            <button class="text-gray-300 hover:text-red-500 px-1" title="{{ __('Delete') }}">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
                             @empty
                                 <p class="p-4 text-sm text-gray-500">{{ __('No conversations yet.') }}</p>
                             @endforelse
+                        </div>
+                        <div class="p-3 border-t border-gray-100">
+                            {{ $sessions->links() }}
                         </div>
                     </div>
 

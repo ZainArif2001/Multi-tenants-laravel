@@ -85,6 +85,7 @@
                     </table>
                 </div>
             </div>
+            {{ $employees->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

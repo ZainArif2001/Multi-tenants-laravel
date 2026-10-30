@@ -18,7 +18,7 @@ class WebhookController extends Controller
     public function index(): View
     {
         return view('app.webhooks.index', [
-            'hooks' => Webhook::latest()->get(),
+            'hooks' => Webhook::latest()->paginate(15),
             'events' => self::EVENTS,
         ]);
     }

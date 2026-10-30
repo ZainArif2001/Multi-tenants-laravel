@@ -14,7 +14,7 @@ class TaskController extends Controller
 {
     public function index(): View
     {
-        $tasks = Task::with('project', 'assignee')->latest()->get();
+        $tasks = Task::with('project', 'assignee')->latest()->paginate(20);
 
         return view('app.tasks.index', compact('tasks'));
     }

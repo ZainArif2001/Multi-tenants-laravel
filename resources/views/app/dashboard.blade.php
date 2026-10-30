@@ -31,6 +31,22 @@
                 ];
             @endphp
 
+            {{-- Live analytics strip --}}
+            <div class="grid grid-cols-3 gap-4">
+                <div class="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl p-5 text-white">
+                    <div class="text-3xl font-bold">{{ number_format($viewsToday) }}</div>
+                    <div class="text-indigo-100 text-sm mt-1">{{ __('Page views today') }}</div>
+                </div>
+                <div class="bg-gradient-to-br from-violet-500 to-purple-700 rounded-2xl p-5 text-white">
+                    <div class="text-3xl font-bold">{{ number_format($visitorsToday) }}</div>
+                    <div class="text-violet-100 text-sm mt-1">{{ __('Unique visitors today') }}</div>
+                </div>
+                <a href="{{ route('tenant.inbox') }}" class="bg-gradient-to-br from-rose-500 to-pink-700 rounded-2xl p-5 text-white hover:from-rose-600 hover:to-pink-800 transition">
+                    <div class="text-3xl font-bold">{{ number_format($openTickets) }}</div>
+                    <div class="text-rose-100 text-sm mt-1">{{ __('Open tickets →') }}</div>
+                </a>
+            </div>
+
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 @foreach ($stats as $stat)
                     @if (($stat['module'] === null || (tenant()->hasModule($stat['module']) && auth()->user()->hasAccessTo($stat['module']))) && (auth()->user()->can($stat['can']) || auth()->user()->hasRole('admin')))
@@ -116,20 +132,82 @@
                 @endif
             </div>
 
-            {{-- Activity chart — posts & messages per day (last 14) --}}
-            <div class="bg-white border border-gray-200 rounded-2xl p-6" x-data="dashboardChart({{ Js::from($chart) }})" x-init="render()">
+            {{-- Site traffic chart — page views & unique visitors (last 14 days) --}}
+            <div class="bg-white border border-gray-200 rounded-2xl p-6" x-data="trafficChart({{ Js::from($chart) }})" x-init="render()">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="font-semibold text-gray-900">{{ __('Last 14 days') }}</h3>
+                    <h3 class="font-semibold text-gray-900">{{ __('Site traffic — last 14 days') }}</h3>
                     <div class="flex items-center gap-4 text-xs text-gray-500">
-                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-indigo-500 rounded-sm"></span> Posts</span>
-                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-purple-500 rounded-sm"></span> Messages</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-indigo-500 rounded-sm"></span> {{ __('Page views') }}</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-violet-500 rounded-sm"></span> {{ __('Visitors') }}</span>
                     </div>
                 </div>
                 <canvas x-ref="canvas" height="80"></canvas>
             </div>
 
+            <div class="grid lg:grid-cols-2 gap-6">
+                {{-- Activity chart — posts & messages per day --}}
+                <div class="bg-white border border-gray-200 rounded-2xl p-6" x-data="dashboardChart({{ Js::from($chart) }})" x-init="render()">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-900">{{ __('Content activity') }}</h3>
+                        <div class="flex items-center gap-4 text-xs text-gray-500">
+                            <span class="flex items-center gap-1"><span class="w-3 h-3 bg-indigo-500 rounded-sm"></span> Posts</span>
+                            <span class="flex items-center gap-1"><span class="w-3 h-3 bg-purple-500 rounded-sm"></span> Messages</span>
+                        </div>
+                    </div>
+                    <canvas x-ref="canvas" height="110"></canvas>
+                </div>
+
+                {{-- Top content --}}
+                <div class="bg-white border border-gray-200 rounded-2xl p-6">
+                    <h3 class="font-semibold text-gray-900 mb-4">{{ __('Top content') }}</h3>
+                    <div class="space-y-2.5">
+                        @forelse ($topPosts as $i => $post)
+                            <div class="flex items-center gap-3">
+                                <span class="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-bold flex items-center justify-center">{{ $i + 1 }}</span>
+                                <span class="flex-1 text-sm text-gray-700 truncate">{{ $post->title }}</span>
+                                <span class="text-xs text-gray-400 whitespace-nowrap">{{ number_format($post->views) }} {{ __('views') }}</span>
+                            </div>
+                        @empty
+                            <p class="text-sm text-gray-400">{{ __('No published posts yet.') }}</p>
+                        @endforelse
+                    </div>
+                    @if ($topPages->isNotEmpty())
+                        <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-5 mb-2">{{ __('Top pages (14d)') }}</h4>
+                        <div class="space-y-2">
+                            @foreach ($topPages as $page)
+                                <div class="flex items-center gap-3">
+                                    <span class="flex-1 text-xs font-mono text-gray-600 truncate">{{ $page->path === '/' ? '/ (home)' : $page->path }}</span>
+                                    <span class="text-xs text-gray-400 whitespace-nowrap">{{ number_format($page->total) }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
+
             <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
             <script>
+                function trafficChart(data) {
+                    return {
+                        render() {
+                            new Chart(this.$refs.canvas, {
+                                type: 'line',
+                                data: {
+                                    labels: data.labels,
+                                    datasets: [
+                                        { label: 'Page views', data: data.views, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.1)', fill: true, tension: .35, pointRadius: 2 },
+                                        { label: 'Visitors', data: data.visitors, borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,.08)', fill: true, tension: .35, pointRadius: 2 },
+                                    ],
+                                },
+                                options: {
+                                    plugins: { legend: { display: false } },
+                                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                                },
+                            });
+                        },
+                    };
+                }
+
                 function dashboardChart(data) {
                     return {
                         render() {

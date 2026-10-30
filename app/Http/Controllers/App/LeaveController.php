@@ -46,6 +46,19 @@ class LeaveController extends Controller
     }
 
     /**
+     * Owner cancels their own pending request; admin can delete any.
+     */
+    public function destroy(Request $request, LeaveRequest $leave): RedirectResponse
+    {
+        $isAdmin = $request->user()->hasRole('admin');
+        abort_unless($isAdmin || ($leave->user_id === $request->user()->id && $leave->status === 'pending'), 403);
+
+        $leave->delete();
+
+        return back()->with('success', 'Leave request removed.');
+    }
+
+    /**
      * Admin approve / reject.
      */
     public function review(Request $request, LeaveRequest $leave): RedirectResponse
@@ -59,7 +72,7 @@ class LeaveController extends Controller
         \App\Models\UserNotification::notify($leave->user_id, 'employee',
             "Leave request {$data['status']}",
             "{$leave->type} {$leave->start_date->format('M j')}→{$leave->end_date->format('M j')}"
-                . ($data['admin_note'] ? " — {$data['admin_note']}" : ''),
+                . (($data['admin_note'] ?? null) ? " — {$data['admin_note']}" : ''),
             route('tenant.leaves.index'));
 
         return back()->with('success', "Request {$data['status']}.");

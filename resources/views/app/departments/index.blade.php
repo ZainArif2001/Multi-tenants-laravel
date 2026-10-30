@@ -78,6 +78,7 @@
                     </tbody>
                 </table>
             </div>
+            {{ $departments->links() }}
         </div>
     </div>
 </x-tenant-app-layout>

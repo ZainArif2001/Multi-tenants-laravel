@@ -12,7 +12,7 @@ class JobRoleController extends Controller
 {
     public function index(): View
     {
-        $jobRoles = JobRole::withCount('employees')->latest()->get();
+        $jobRoles = JobRole::withCount('employees')->latest()->paginate(15);
 
         return view('app.job-roles.index', compact('jobRoles'));
     }

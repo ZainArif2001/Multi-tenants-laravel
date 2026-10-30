@@ -29,11 +29,25 @@
                         </div>
 
 
-                        <!-- Name -->
-                        <div>
+                        <!-- Domain — live availability check -->
+                        <div x-data="{ status: null, full: '', checkUrl: '{{ route('tenants.check-domain') }}',
+                                async check(v) {
+                                    const d = v.trim().toLowerCase();
+                                    if (! d) { this.status = null; return; }
+                                    const r = await fetch(`${this.checkUrl}?d=${encodeURIComponent(d)}`);
+                                    const res = await r.json();
+                                    this.status = res.available; this.full = res.domain;
+                                } }">
                             <x-input-label for="domain_name" :value="__('Domin Name')" />
                             <x-text-input id="domain_name" class="block mt-1 w-full" type="text" name="domain_name"
+                                @input.debounce.400ms="check($event.target.value)"
                                 :value="old('domain_name')" required autofocus autocomplete="domain_name" />
+                            <p x-show="status === true" x-cloak class="mt-1 text-xs text-green-600 font-medium">
+                                ✓ <span x-text="full"></span> — {{ __('available!') }}
+                            </p>
+                            <p x-show="status === false" x-cloak class="mt-1 text-xs text-red-600 font-medium">
+                                ✗ <span x-text="full"></span> — {{ __('already taken, pick another') }}
+                            </p>
                             <x-input-error :messages="$errors->get('domain_name')" class="mt-2" />
                         </div>
 

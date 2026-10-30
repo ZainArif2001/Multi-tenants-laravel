@@ -47,11 +47,22 @@ class AuthenticatedSessionController extends Controller
      */
     protected function landingUrl($user): string
     {
-        return match (true) {
-            $user->hasAccessTo('posts') => route('tenant.posts.index', absolute: false),
-            $user->hasAccessTo('employees') => route('tenant.employees.index', absolute: false),
-            $user->hasAccessTo('projects') => route('tenant.projects.index', absolute: false),
-            $user->hasAccessTo('chat') => route('tenant.chats.index', absolute: false),
+        // Single module access → land straight on it.
+        // Multiple modules → dashboard so they can pick.
+        $access = collect(['posts', 'employees', 'projects', 'chat', 'messaging'])
+            ->filter(fn ($m) => $user->hasAccessTo($m))
+            ->values();
+
+        if ($access->count() !== 1) {
+            return route('tenant.dashboard', absolute: false);
+        }
+
+        return match ($access->first()) {
+            'posts' => route('tenant.posts.index', absolute: false),
+            'employees' => route('tenant.employees.index', absolute: false),
+            'projects' => route('tenant.projects.index', absolute: false),
+            'chat' => route('tenant.chats.index', absolute: false),
+            'messaging' => route('tenant.messages.index', absolute: false),
             default => route('tenant.dashboard', absolute: false),
         };
     }

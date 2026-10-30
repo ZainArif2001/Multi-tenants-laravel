@@ -12,7 +12,7 @@ class ProjectController extends Controller
 {
     public function index(): View
     {
-        $projects = Project::withCount('tasks')->latest()->get();
+        $projects = Project::withCount('tasks')->latest()->paginate(15);
 
         return view('app.projects.index', compact('projects'));
     }
